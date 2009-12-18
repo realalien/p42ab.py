@@ -1,0 +1,15 @@
+
+Purpose:
+To migrate all the data from a Perforce(SCM) server to the AlienBrain server,
+includes one-time database migration and changelist(ChangeSet) sync.  
+
+
+Progress:
+study and design
+
+
+How-to:
+
+
+
+Ref:
