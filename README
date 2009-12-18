@@ -1,7 +1,9 @@
 
 Purpose:
-To migrate all the data from a Perforce(SCM) server to the AlienBrain server,
+    To migrate all the data from a Perforce(SCM) server to the AlienBrain server,
 includes one-time database migration and changelist(ChangeSet) sync.  
+    This project tends to wrap the 'ab.exe' command line, rather be a script for execution
+instead of a module.
 
 
 Progress:
@@ -13,3 +15,7 @@ How-to:
 
 
 Ref:
+* p42svn 
+* http://code.google.com/p/python-p4lib/
+* http://www.devshed.com/c/a/Python/Windows-Programming-in-Python/3/
+* http://code.google.com/p/dedafx-dev/source/browse/trunk/python/alienbrain.py [NOT SUG]
