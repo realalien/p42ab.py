@@ -1,0 +1,597 @@
+
+Usage: 
+   ab [help | h] [<command> | <command acronym>]
+   ab <command> <command options> <options>
+   ab <command acronym> <command options> <options>
+
+with <command> or <command acronym> as follows:
+
+addtobucket <path> -name <bucket name> [-createchild]
+   (-version <version number> |
+    ([-fromversion <version no>] [-toversion <version no>]))
+   acronym: atb
+   add an item to the bucket specified by the bucket name
+   if -createchild is specified and the given file does not fit into
+   the current bucket, then a new bucket is created. If the file does not
+   fit into this new bucket then an error is returned.
+   -version specifies the version of the item to put into the bucket
+   using the -fromversion, -toversion, options you can give a 
+   range of versions to be added to the bucket
+   you must specify either -version or else use -fromversion and/or -toversion
+bucketsetoffline <bucket name> [-comment <comment>]
+   acronym: bsoff
+   sets the specified bucket offline
+bucketsetonline <bucket name> -mountpath <mount path>
+   acronym: bson
+   sets the specified bucket online
+   with -mountpath you specify the path on the server where the bucket
+   can be accessed by the server (usually a UNC path)
+checkin <path> [-comment <comment>] [-keepcheckedout] [-norecursive]
+   [-versionpolicy <policy>]
+   acronym: ci
+   checkin a project item
+   if -norecursive is specified, a checkin on a folder
+   is only applied to items in the folder, but not to
+   its subfolders
+   using the -versionpolicy option it is possible to specify if a version
+   should be created by the server on checkin, policy can be one of these:
+     auto    (default) a version is created if necessary (e.g. if the file
+             checked-in is newer than the current version on the server
+     always  a version is always created
+     never   no new version is created on the server
+checkout <path>  [-comment <comment>] [-norecursive] [-dontgetlocal]
+   [-localpath <local path>] [-filetime <policy>] [-exclusive]
+   [-dontconvertcrlf]
+   acronym: co
+   checkout a project item
+   if -norecursive is specified, a checkout on a folder
+   is only applied to items in the folder, but not to
+   its subfolders
+   items on the local disk are updated unless -dontgetlocal is specified
+   if -localpath is specified, the item is checked out
+   to the specified local path
+   the -filetime option is used to set the filetime, possible values for
+   <policy> are as follows:
+      modification  (default) the file time is not touched
+      current       the file time is set to the current time
+      checkin       the file time is set to the checkin time
+   if -exclusive is specified, the item is checked out exclusively
+   if -dontconvertcrlf is specified, no conversion of CR/LF characters to the
+   platform specific representation is performed
+copy <path> [-parent [<new parent path>]]
+   acronym: c
+   copies the specified item
+   using -parent the new parent folder of the item is specified
+   if -parent is not specified, then you must be in a valid alienbrain
+   working folder locally, and the file is copied to there
+   if -parent is specified without a value, then the file
+   is copied to the root folder
+createbranch <branch name> [-parent <branch name>]
+   acronym: cb
+   creates a new branch in the tree under the specified parent branch
+   if no parent is specified, the branch is created under the root branch
+delete <path> [-deletelocal]
+   acronym: d
+   delete specified project item
+   if -deletelocal is specified, the local copy of the item is also deleted
+deletelocal <path>
+   acronym: dl
+   delete local copy of specified item
+destroy [<path>] [(-changeset <change set> | -branch <branch name>)] 
+   acronym: dy
+   in case <path> is specified it identifies an item in the
+   deleted items folder and destroys the item
+   in case -branch is specified the branch is removed from the project
+   in case -changeset is specified the changeset is removed from the project
+disablechangesets
+   acronym: dcs
+   disables change sets in the current project, and resets the last branch
+   active, that was active before change sets were activated
+enumbranches
+   acronym: eb
+   return list of all branches
+enumbuckets
+   acronym: ebu
+   return list of all buckets
+enumchangesets
+   acronym: ecs
+   enumerate all change sets
+enumobjects [<path>] [-format <format specification>] [-disk]
+   [-diskonly] [-recursive]
+   acronym: eo
+   list child objects of specified node in the project
+   if <path> is not specified, the objects in the current folder are listed
+   if -disk is specified, also the local files and directories
+   in the current directory are listed
+   if -diskonly is specified, only the local files and directories
+   in the current directory are listed
+   if -recursive is specified, the tool traverses into the
+   subfolders as well
+   <format specification> is a format string with
+   property names enclosed in '#'
+   Example: "DbPath=#DbPath# LocalPath=#LocalPath# Comment=#Comment#"
+enumprojects [-s <server>]
+   acronym: ep
+   retrieve list of available projects on specified server
+   if <server> is not specified, the projects on the server
+   you are currently logged on are listed
+enumservers
+   acronym: es
+   retrieve list of all available servers in the local network
+existsindb <path>
+   acronym: eid
+   exit status is 0 if the item identified by the path
+   exists in the project, else 1
+find [<path>] [-checkedoutby <user>] [-name <pattern>]
+   [-regex <search expression>] [-versions] [-format <format specification>]
+   [-pendingchangesfor <user>] [-direct]
+   acronym: f
+   find objects in the database given some search criteria:
+   if <path> is not specified objects are searched in the current subtree
+   -checkedoutby returns all objects checked out by the specified user
+      if no user is specified then the current user is used
+   -name returns all objects with their names matching
+      the specified pattern
+   -regex returns all objects matching the specified search expression
+      a search expression is of format
+      <operator> = "=" | "<" | ">" | "<=" | ">=" | "!="
+      <simple expression> = <property name> <operator> <regular expression>
+      <search expression> = <simple expression> [[AND | OR] <search expression>]
+   -versions if specified, the search is performed also
+      on the versions of an object
+   -pendingchangesfor returns all pending changes in change sets
+      for the current user
+      if no user is specified then the current user is used
+   the search criteria can be combined to match ALL of them
+   for the <format specification> see the enumobjects command
+   if -direct is specified, and it is a property search using a 
+   regular expression then only property values directly set
+   on objects will be matched
+getactivebranch
+   acronym: gab
+   retrieve the currently active branch for this project
+getbucketinfo <bucket name> [-format <format specification>]
+   acronym: gbi
+   retrieve information about a bucket identified by its name
+   for the format specification see the enumobjects command
+getchangesetinfo [<name>] [-format <format specification>]
+   acronym: gcsi
+   retrieves all the changes within the change set specified by <name>
+   if <name> is not specified the currently active change set is used
+getconfigproperty -name <property name>
+   acronym: gcp
+   get the value of the specified configuration property
+getcurrentversionnumber <path>
+   acronym: gcvn
+   returns the current version number for the specified object
+getdefaultchangeset
+   acronym: gdcs
+   return the current default change set
+getlatest <path> [-localpath <local destination path>] [-norecursive]
+   [-nosmartget] [-forcefileupdate] [-filetime <policy>] [-dontconvertcrlf]
+   [-overwritewritable <policy>] [-overwritecheckedout <policy>]
+   acronym: gl
+   get latest version of project item
+   if -localpath is specified the item is copied to the specified local path
+   if -norecursive is specified a getlatest on a folder does not
+   traverse into its subfolders
+   if -nosmartget is specified, the smart get optimization is
+   disabled
+   if -forcefileupdate is specified, the local file is always updated
+   with the file on the server
+   the -filetime option is used to set the filetime of the local file
+   after being retrieved from the server, possible values for <policy>
+   are as follows:
+      modification  (default) the file time is not touched
+      current       the file time is set to the current time
+      checkin       the file time is set to the checkin time
+   using -overwritewritable you specify if writable local files should get
+   overwritten, possible values for <policy> are as follows:
+      ask       (default) ask before overwriting the file
+      skip      do not touch the file
+      replace   replace the file with the version on the server
+   using -overwritecheckedout you specify if checked out files should get
+   overwritten, possible values for <policy> are
+      ask       (default) ask before overwriting the file
+      skip      do not touch the file
+      replace   replace the file with the version on the server
+   if -dontconvertcrlf is specified, no conversion of CR/LF characters to the
+   platform specific representation is performed
+getproperty [<path> | -handle <object handle>] [-direct] -name <property name>
+   acronym: gp
+   retrieve the value of a named property
+   the object to retrieve the property from is either given
+   by its path or its handle
+   if <path> is specified, the property value of the object
+   identified by <path> is returned
+   if -handle is specified, the property value of the object
+   identified by <object handle> is returned
+   if -direct is specified, the property value directly set on the object
+   is returned instead of being inherited
+getsessionproperty -name <property name>
+   acronym: gsp
+   retrieves the value of a session property
+   previously set using setsessionproperty
+getversion <path> ([-date <date>] | [-label <label>] | [-version <number>])
+   [-localpath <local path>] [-replacefiles <policy>] [-dontconvertcrlf]
+   acronym: gv
+   retrieve a version for the specified project item given by date or label
+   if -localpath is specified, the version is copied to the specified local path
+   using -replacefiles you specify how local copies of files should be
+   treated, policy can be one of the following:
+      always   local copies are always replaced by the server version
+      never    if a local copy exists, it is never replaced
+      ask      the tool prompts the user
+   if -dontconvertcrlf is specified, no conversion of CR/LF characters to the
+   platform specific representation is performed
+getworkingpath [<folder>] [-direct]
+   acronym: gwp
+   returns the working path for the specified object
+   if -direct is specified, then it will return the path only if it was set
+   directly on the object, otherwise an error is returned
+history <path> [-fromversion <version no>] [-toversion <version no>]
+   [-fromdate <date>] [-todate <date>] [-format <format specification>]
+   [-structural] [-dontshowlabels]
+   acronym: hi
+   retrieve history for database items
+   using the -fromversion, -toversion, -fromdate, -todate options
+   you can restrict the history to a subset of items to be returned
+   if -structural is specified, then structural versions will also be listed
+   i.e. those created when a file is moved, renamed etc...
+   if -dontshowlabels is specified, labels are not listed
+import <local path> [-parent [<path>]] [-comment <comment>]
+   [-dontgetlocal] [-dontfollowsymlink] [-norecursive] [-ignoreexisting]
+   [-checkout]
+   acronym: i
+   import an item on the local disk into the project
+   if -parent is not specified, then you must be in a valid alienbrain
+   working folder locally, and the file is imported to there
+   if -parent is specified without a value, then the file is
+   imported to the root folder
+   if -norecursive is specified, an import on a folder
+   only imports files in the folder and not the subfolders
+   if -dontgetlocal is specified, the items are not
+   retrieved from the server after they are imported
+   if -dontfollowsymlink is specified, symbolic links are not imported
+   if -ignoreexisting is specified, items already existing in
+   the database are skipped
+   if -checkout is specified, the file is automatically checked out
+   after it is imported
+isbridgerunning [-verbose] [-silent]
+   acronym: ibr
+   checks the status of the bridge
+   in case the bridge is running the return status is set to 0,
+   else it is set to 1
+   in case -verbose is specified, the return status is also printed to stdout
+   in case -silent is specified, no message is printed to stdout
+ischeckedout <path>
+   acronym: ico
+   exit status is 0 if the specified object is checked out
+   by current user, else 1
+ischanged <path>
+   acronym: ich
+   exit status is 0 if the specified object is changed by current user,
+   on the current machine, else 1
+isconnected
+   acronym: ic
+   exit status is 0 if you are currently connected, else 1
+islocked <path>
+   acronym: il
+   exit status is 0 if the specified object is checked out
+   by a different user, else 1
+isnewer <path>
+   acronym: in
+   exit status is 0 if the item on the local disk
+   is newer than the item on the server, else 1
+isolder <path>
+   acronym: io
+   exit status is 0 if the item on the local disk
+   is older than the item on the server, else 1
+isuptodate <path>
+   acronym: iutd
+   exit status is 0 if the item on the local disk
+   is up to date, else 1
+logon -s <server> -d <database> [-u <username>] [-p <password>]
+   [-z <hosting server>]
+   acronym: lon
+   logon to a project with the username, password,
+   project and server as specified in the options
+   if -u or -p is not specified the user is prompted for the
+   username or password
+   if -z is specified, and -s is an rcs server, the hosting server
+   is the server where the projects reside
+logoff [-requestshutdown]
+   acronym: loff
+   disconnect from the current project
+   in case -requestshutdown is specified and no other
+   connections exist, the JXDK bridge is shutdown
+logoninfo
+   acronym: li
+   retrieve logon information about the current session
+move <path> [-parent [<new parent path>]]
+   acronym: m
+   move an item to a location with the specified parent as the new parent
+   if -parent is not specified, then you must be in a valid alienbrain
+   working folder locally, and the file is moved to there
+   if -parent is specified without a value, then the file is moved
+   to the root folder
+merge [<path in other branch>] -branch <target branch>
+   [-localpath <local path>] [-comment <comment>] [-cancel] [-automerge]
+   acronym: me
+   performs a merge of the specified item in the specified branch
+   with the currently active branch
+   if no path is specified then the whole project is merged
+   any conflicts that occur result in events for the user
+   the user may use the default response mechanism to respond
+   to these events in scripts
+   using -localpath it is possible to specify a temporary path
+   where the files for the conflicting versions are copied to
+   if -cancel is specified temporary files are cleared up when
+   the user wishes to cancel the merge
+   if -automerge is specified an auto content merge on the files is performed
+modifylabel <path> -name <label name> [-newname <newname>] [-date <date>]
+   [-comment <comment>]
+   acronym: ml
+   modifies an existing label
+   -name specifies the name of the label to modify
+   -newname specifies the new name of the label
+   -date specifies the new date of the label
+   -comment specifies the new comment of the label
+newbucket <bucket name> -maxsize <size in bytes> -clustersize <size in bytes>
+   [-mountpath <path>] [-comment <comment>]
+   acronym: nb
+   This command creates a new bucket with the specified name.
+   -maxsize is the maximum size of the bucket in bytes
+   -clustersize is the cluster size in bytes
+   -mountpath the path of the bucket on the server, this path
+      must be specified as a UNC path and accessible from the server
+newchangeset <name>
+   acronym: ncs
+   create a new change set identified by <name>
+newfile <path> [-comment <comment>] [-dontgetlocal]
+   acronym: nfi
+   create a new file in the project
+   if -dontgetlocal is specified a local copy of the file is not retrieved
+newfolder <path> [-comment <comment>] [-dontgetlocal]
+   acronym: nfo
+   create a new folder in the project
+   if -dontgetlocal is specified the folder is not created locally
+newshare <path> [-parent <parent path>]
+   acronym: ns
+   create a share pointing to <path> under the specified parent
+   if -parent is not specified, then you must be in a valid alienbrain
+   working folder locally, and the share is created there
+   if -parent is specified without a value, then the share is
+   created in the root folder
+removelabel <path> -name <label name> [-removeglobally]
+   acronym: rl
+   remove a label at the specified path
+   if -removeglobally is specified, the label is removed globally
+rename [<path> | -changeset <name>] -name <new name>
+   acronym: re
+   changes the name of an item
+   if -changeset is specified then the change set specified by <name>
+   is renamed
+rollback <path> ([-date <date>] | [-label <label name>] |
+                 [-version <version number>])
+   [-comment <comment>] [-dontgetlocal] [-dontconvertcrlf]
+   acronym: rb
+   performs a rollback on the specified item to the
+   specified date, label or version
+   items on the local disk are updated unless -dontgetlocal is specified
+   if -dontconvertcrlf is specified, no conversion of CR/LF characters to the
+   platform specific representation is performed
+setactivebranch [<branch>]
+   acronym: sab
+   set the specified branch as the active branch
+   if <branch> is not specified, the root branch becomes the active branch
+setconfigproperty -name <property name> -value <property value>
+   acronym: scp
+   set the specified configuration property
+setdefaultchangeset [<name>]
+   acronym: sdcs
+   sets the default change set to the change set identified by <name>
+   this will be the change set used when no set is explicitly
+   specified for operations
+   if <name> is not specified, the unnamed change set becomes the default
+setlabel <path> -name <label name> [-comment <comment>] [-date <date>]
+   acronym: sl
+   set a label at the specified path
+setproperty [<path> | -handle <object handle>] -name <property name>
+   -value <property value>
+   acronym: sp
+   set the value of a named property
+   the object to set the property on is either given
+   by its path or its handle
+   if <path> is specified, the property value of the object
+   identified by <path> is set
+   if -handle is specified, the property value of the object
+   identified by <object handle> is set
+setsessionproperty -name <property name> -value <property value>
+   acronym: ssp
+   sets the value of a session property
+   session properties are only valid for the duration
+   of the session the properties are set in
+setworkingpath ([<local path>] | [-dbpath <project path>])
+   acronym: swp
+   set the working path to the specified local path
+   if <local path> is not specified, the working path is reset
+   and gets inherited from the parent
+   if -dbpath is not specified, the working path
+   is set for the root object
+shutdown [-force]
+   shutdown the bridge after asking the user, this disconnects
+   all connected clients
+   if the -force option is specified, a shutdown without
+   asking the user is performed
+submitpendingchanges [<path> | -changeset <changeset name>]
+   acronym: spc
+   where <path> is a file/folder in a change set with pending changes
+   if -changeset is specified, the change set identified by name
+   will be submitted
+   if <path> and -changeset are not specified the current default change set
+   will be submitted
+   refer to checkin for a list of other valid parameters that can be
+   used with submitpendingchanges
+synchronize [<path>] [-checkin] [-keepcheckedout] [-getlatest]
+   [-getonlyupdates] (-importwritable | -importall | -deletelocal)
+   acronym: s
+   synchronizes the contents of the working directory on the local disk
+   with the server
+   the options when specified are as follows:
+   -checkin           check-in all checked-out items
+   -keepcheckedout    check-in items but keep them checked-out
+   -getlatest         perform a get latest on the items
+   -getonlyupdates    perform a get latest only if the items
+                      already exist locally
+   -importwritable    import only writeable files not already in the database
+   -importall         import all items on disk not already in the database
+   -deletelocal       delete local copies of files not in the database
+   at least one of these options must be specified,
+   otherwise synchronize has no effect
+undelete <path>
+   acronym: ud
+   restore previously deleted file or folder
+   to its original location
+undocheckout <path> [-dontgetlocal] [-norecursive] [-dontconvertcrlf]
+   [-allusers] [-afterundo <policy>] [-filetime <policy>]
+   acronym: uco
+   undo checkout the specified project item
+   if -norecursive is specified, an undocheckout on a folder
+   is only applied to items in the folder, but not to
+   its subfolders
+   if -dontgetlocal is specified, the local copy of the file
+   is not updated
+   if -dontconvertcrlf is specified, no conversion of CR/LF characters to the
+   platform specific representation is performed
+	if -allusers is specified, the checkouts from all users are undone. If
+	the current user does not have admin rights, then an error is thrown.
+   using -afterundo you can specify what to do with the local item
+   after the operation is finished, possible values for <policy> are as follows:
+      delete     delete the local file
+      revert     (default) update the local file with the version on the server
+      dontchange leave the local file untouched
+   the -filetime option is used to set the filetime, possible values
+   for <policy> are as follows:
+      modification  (default) the file time is not touched
+      current       the file time is set to the current time
+      checkin       the file time is set to the checkin time
+undopendingchanges [<path> | -changeset <changeset name>]
+   acronym: upc
+   where <path> is a file/folder in a change set with pending changes
+   if -changeset is specified, the changes in the change set identified
+   by name will be undone
+   if <path> and -changeset are not specified the changes in the current
+   default change set will be undone
+   refer to undocheckout for a list of other valid parameters that can be
+   used with undopendingchanges
+version
+   acronym: v
+   return version information about the command-line tool
+
+Command Arguments:
+------------------
+<path> is either a local disk path or in format 
+   alienbrain://<project path> or ab://<project path>
+<date> specifies a date in the format "dd/mm/yyyy hh:mm"
+   (e.g. "17/12/2003 11:53")
+
+<options> can be a combination of the following:
+-u <username>
+-p <password>
+-s <server name or IP address>
+-z <project hosting server name or IP address>
+-d <project name>
+-w <current working directory>
+-i <session name>
+
+To specify default responses use option:
+-response:<response id> <response>
+with:
+<response id> a valid response id
+<response> a valid response ('y' or '0', 'n' or '1', 'c' or '4')
+
+Configuration Properties:
+-------------------------
+SessionTimeout
+   the timeout in seconds after which the current session is
+   logged off when no activity was detected
+   default value is 900 seconds (15 minutes)
+JXDKBridgeTimeout
+   this specifies the timeout in seconds after which
+   the bridge is shutdown when the last client disconnects
+VerboseLevel
+   the verbose level for messages, valid values are:
+   0 (silent), 1 (print warnings), 2 (print all messages)
+
+Session Properties:
+-------------------
+UseDefaultResponses
+   if set to true, then events will be fired so that
+   the default responses can handle them
+   if set to false, then the user settings for some events
+   will take precedence and the default response may have no effect
+   default value is false
+
+Multi-line Arguments:
+---------------------
+To specify multi-line arguments use the reserved keyword STDIN
+for the value of the argument. The command-line tool then reads
+from standard input until a '.' character at the beginning of a line
+followed by a newline is entered. Multi-line arguments are currently
+supported for the -comment and -value arguments.
+Example:
+> ab checkout /images/myimage1.bmp -comment STDIN
+This is
+my
+comment.
+.
+> _
+
+Environment Variables:
+----------------------
+They can be used to set default values for specific parameters.
+They are used in case the corresponding parameter is not
+specified on the command-line.
+The following environment variables are supported:
+   NXN_AB_USERNAME the default logon username
+   NXN_AB_PASSWORD the default logon password
+   NXN_AB_DATABASE the default database name
+   NXN_AB_SERVER   the default name of the server
+   NXN_AB_LOG      the path to the logfile the command-line is echoed to
+   NXN_AB_ECHO     if set the entered command-line is printed on stdout
+   NXN_AB_HOSTING_SERVER   the default name of the server hosting the projects
+
+Handling Special Characters:
+----------------------------
+Whenever a command is entered in the shell, the shell first processes
+the provided command-line before the command-line tool gets access
+to the arguments.
+This means that depending on the shell you are using it is e.g. necessary
+to do a handling of characters which have a special meaning in the shell
+(e.g. backslash ('\') or asterisk ('*')).
+Usually you escape special characters by a preceding backslash.
+
+Example:
+The following may not work as expected:
+ab checkout picture1.bmp -comment Comment\with*special\characters*
+This may work:
+ab checkout picture1.bmp -comment Comment\\with\*special\\characters\*
+As soon as you use quotes the situation might be different.
+Inside quotes you may not need to escape some characters:
+ab checkout picture1.bmp -comment "Comment\\with*special\\characters*"
+
+See your shell's documentation for further details.
+
+Usage Examples:
+---------------
+ab help checkout
+ab h gl
+ab enumprojects -s NXNSERVER
+ab logon -u John -p "" -d Demo_Project -s NXNSERVER
+ab setworkingpath "c:\myworkingpath\Demo_Project"
+ab enumobjects
+ab isuptodate picture1.bmp
+ab find -checkedoutby "John"
+ab checkout picture1.bmp -comment "Modifying background" -response:CheckOut.Writable y
+ab logoff
