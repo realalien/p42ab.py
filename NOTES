@@ -19,3 +19,8 @@ A:
 Q: 
 
 
+* Hint: if the API is not mature, do not try to wrap in class? 
+adv. non-obj dependent, stateless.
+disadv. no-concept-of-class,e.g. method classification, 
+
+
