@@ -2,12 +2,13 @@
 Purpose:
     To migrate all the data from a Perforce(SCM) server to the AlienBrain server,
 includes one-time database migration and changelist(ChangeSet) sync.  
-    This project tends to wrap the 'ab.exe' command line, rather be a script for execution
-instead of a module.
+    This project tends to wrap the 'ab.exe' and 'p4.exe' commands , rather than being a batch
+processing. Since not all the SCM actions will be used in migration, so the wrapper is only
+useful for simple migration, for now, a feature request I have to get done.
 
 
 Progress:
-study and design
+2001[study and design]
 
 
 How-to:

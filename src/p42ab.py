@@ -3,6 +3,16 @@
 import os, sys
 import subprocess
 
+#P4_TO_AB_ACTIONS = {
+#      'add'       => \&p4add2svn,
+#      'delete'    => \&p4delete2svn,
+#      'edit'      => \&p4edit2svn,
+#      'branch'    => \&p4branch2svn,
+#      'integrate' => \&p4integrate2svn,
+#      'purge'     => \&p4purge2svn);                
+#}
+
+
 def debug(text):
     print("------>>>  " + str(text))
     
@@ -29,6 +39,7 @@ class AB:
         # TODO: check version info
         self.args = []
         self.output = ""
+        self.potential_failed_file_dir = {}
     
     def getworkingpath(self):
         self.args = []
@@ -111,23 +122,7 @@ class AB:
         cmd_str = " ".join(['ab','getworkingpath'])
         self.call(cmd_str)
     
-    def p4_workspace_dir(self, dir_in_depot, view):
-        """ map the //depot... to local directory from a preset view of p4 workspace"""
-        
-        # template replace
-        # TODO: see if neccessary!
-        map_depot_to_local_dir = {}
-        if type(view)  == type(dict()):
-            # parse the multiple line of view mapping, hopefully each entry is on the just one line.
-            lines = view.split("\n")
-            
-            for line in lines:
-                (key, value ) = line.split(" ")
-                key = key.strip()       #remove heading/trailing spaces 
-                if key.startswith("+"): #remove multiple line view symbol "+"
-                    key = key[1:]
-        return 
-        
+
         
     
     def apply_actions(self, p4_chg_detail):
@@ -142,8 +137,25 @@ class AB:
             debug("file: %s \n" %  file )
             action = p4_chg_detail['action'][i]
             debug("action: %s \n" % action )
-            localdir = self.p4_workspace_dir(file, p4env['view']) 
+            localdir = self.workspace_dir(file, p4env) # @attention: use the dict that contain the view, not the value of the key. 
             debug ("local dir is : %s \n " % localdir )
+            
+            #CONT.
+            # Test out all the actions offered by alienbrain and mapp
+            # * submit empty directory  ... (AB's GUI ... OK! )
+            # * group individual changes into ChangeSet ... ()
+            
+        
+            # * ESP, from manual ops, one action performed by p4.exe may be transferred to AB
+            #   in more-than-one-step, e.g. add action => import, use a named/unnamed changeset,
+            #   then submit to AB server.
+            
+            
+            
+            
+        
+            # apply the action in the alienbrain workdir.
+            
                 
     def submit_file(self,file):    
         pass
@@ -153,7 +165,71 @@ class AB:
         #TODO: sanity check to prevent the interrupted one or duplicated one! 
         #TODO: ??make it atomic? rollback ab's change if not fulfilled.  
         pass
+
+    def workspace_dir(self, workspace_basedir, a_depot_path, view):
+        """ map the //depot... to local directory from a preset view of p4 workspace,
+        this method should give a absolute directory if fed one directory in the depot. 
+        The absolute path of a file is got from p4's view and p4's client specification, 
+        the path will be used to apply actions at the alienbrain's side.
+        
+        The difficulty is how to match the longest the map's values for a specific file.
     
+        @var workspace_basedir: the location of the workspace, should be part of the value as shown in the 'view's key, if not, the value of 'view' dict, ????
+        @var a_depot_path: the file/dir location in the view of p4 depot, should starts with //depot/
+        @var view: a dict which should have key named 'view'
+        """
+        
+        # template replace
+        # TODO: see if neccessary!
+        map_depot_to_local_dir = {}
+        symbolic_workspace_dir = ""   # in a symbolic path
+        if type(view)  == type(dict()):
+            # parse the multiple line of view mapping, hopefully each entry is on the just one line.
+            view = view['view']
+            lines = view.split("\n")
+            for line in lines:
+                line = line.strip()
+                if  line.strip().startswith("//depot") or line.strip().startswith("+//depot"):
+                    (key, value ) = line.split(" ")
+                    key = key.strip()       #remove heading/trailing spaces 
+                    if key.startswith("+"): #remove multiple line view symbol "+"
+                        key = key[1:]
+                    if key and value:       #store in new dict after some cleaning.
+                        map_depot_to_local_dir.update( {key:value} )    
+        debug(map_depot_to_local_dir)
+        
+        temp = []
+        candidate = ""
+        #TODO: ESP. potential mapping failure if single mapping on files, like \\depot
+        for key in map_depot_to_local_dir.keys():
+            if os.path.dirname(key) in a_depot_path:
+                temp.append(os.path.dirname(key))
+                # prepare the longest mapping key for return value
+                if os.path.dirname(key) != None and len(os.path.dirname(key)) >= len(candidate) and os.path.dirname(key)!= candidate :
+                    candidate = os.path.dirname(key)
+                    symbolic_workspace_dir = a_depot_path.replace( os.path.dirname(key), map_depot_to_local_dir[key].replace("/...","") )
+        # record the a_depot_path which has no corresponding 
+        if len(temp) != 1:
+            self.potential_failed_file_dir[a_depot_path]= temp         
+        # TODO: assertion on all the file in p4 depot could only have one match.
+        # debug()
+        
+        
+        # get the 'client spec' or use param '' to convert  symbolic_workspace_dir to the 
+        # TODO: use user_spec if better.
+        absolute_workspace_dir = symbolic_workspace_dir.replace("//"+ p4env['client'], workspace_basedir)
+        
+        
+        debug("the potential key is : " + candidate)
+        debug("the local symbolic path is: " + symbolic_workspace_dir)
+        debug("the local absolute path is: " + absolute_workspace_dir)
+        return absolute_workspace_dir
+        
+        
+        # strip the workspace name of the p4, 
+        
+        # return map_depot_to_local_dir
+
     
 #if __name__ == '__main__':
 #    ab = AB("C:\Program Files (x86)\alienbrain\Client\Application\Tools\ab.exe")
@@ -331,19 +407,22 @@ if __name__ == '__main__':
     
     #change_workdir("D:/p4migtest")
     #p4.run_sync("//depot/...@%s" % "1" )
-    changes = p4_get_changes()
-    debug("changes size %s"  % str(len(changes)) )
-    for change in changes: 
-        
-        if int(change['change']) == 351:
-            debug(" ..... " + str(change['change']) )
-            debug("found change 12 \n")
-            
-            detail = p4_get_change_details(change)
-            ab.apply_actions(detail)
-            break;
+#    changes = p4_get_changes()
+#    debug("changes size %s"  % str(len(changes)) )
+#    for change in changes: 
+#        
+#        if int(change['change']) == 351:
+#            debug(" ..... " + str(change['change']) )
+#            debug("found change 12 \n")
+#            
+#            detail = p4_get_change_details(change)
+#            ab.apply_actions(detail)
+#            break;
 
+    ab.workspace_dir("c:/test", "//depot/Alice2_Prog/Tools/Buildbot/master/buildbot.tac", p4env)
     
+    debug("DEBUG: the following files has more than two mapping depot dirs, please check.")
+    debug(ab.potential_failed_file_dir)
     
     
     

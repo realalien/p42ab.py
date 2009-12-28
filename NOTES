@@ -24,3 +24,15 @@ adv. non-obj dependent, stateless.
 disadv. no-concept-of-class,e.g. method classification, 
 
 
+
+
+2009.12.27
+* TODO: test out the 'add empty directory' 
+* Q: why AB's checkout(also other SCM tools ) provide comment for checkout?
+  A: 
+  
+* Q: In AB, each file has an individual 'Version Comment'(see from 'Change Set Details'), what's the corresponding info in the P4?
+  A: 
+
+* Q: what's the use for renaming a pending changeset? 
+  A: 
