@@ -26,7 +26,7 @@ disadv. no-concept-of-class,e.g. method classification,
 
 
 
-2009.12.27
+2009.12.28
 * TODO: test out the 'add empty directory' 
 * Q: why AB's checkout(also other SCM tools ) provide comment for checkout?
   A: 
@@ -36,3 +36,32 @@ disadv. no-concept-of-class,e.g. method classification,
 
 * Q: what's the use for renaming a pending changeset? 
   A: 
+  
+
+
+
+
+2009.12.29
+* Q: how to script 'ab import' without submit a changeset?
+  A: 
+  
+* try to introduce the logging/documentation system for the project, as standard/main-stream practices!
+	see:    http://onlamp.com/pub/a/python/2005/06/02/logging.html
+	 
+* AFM: 
+  research what prevent the practice of 'generating program structure/content from well-format program'? unforeseen design change? difference in design and implementation?
+  i think it's quite useful to do with it give a unix command line utilities, 
+  also in the view of AOP,  
+  
+  also for the benefit of later comers, should not rewalk the experiment/knowledge tree building as the predecessors if they don't want know the inner deep secret without 
+  first familiarity. 
+  
+  
+* Q: do I have to put all the concepts in the command line into first class citizen? it may take more efforts! The benefit is everything looks more clear, but the LOC is increasing
+  A: 
+
+* how that happens?
+D:\zjc\wr2\p42ab.py\src>ab checkout D:\p4migtest\projectA\b.txt
+Could not find "D:\p4migtest\projectA\b.txt" at the given path.
+
+  

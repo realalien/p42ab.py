@@ -5,7 +5,8 @@ includes one-time database migration and changelist(ChangeSet) sync.
     This project tends to wrap the 'ab.exe' and 'p4.exe' commands , rather than being a batch
 processing. Since not all the SCM actions will be used in migration, so the wrapper is only
 useful for simple migration, for now, a feature request I have to get done.
-
+	Personally, I treat it as an learning opportunity to learn more than computer language
+and do some API design exercises.
 
 Progress:
 2001[study and design]

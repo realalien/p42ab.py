@@ -28,8 +28,9 @@ class AB:
     
     # 'long  => short' command name mapping, used in checking or validation
     AB_CMDS = { }
+    # p4_src # the p4 info from which the changes are migrated. Some of the alienbrain's info should get directly from p4 connection instance..
     
-    VALID_ARGS = ("get")
+    # TODO: checking,  VALID_ARGS = ("get")
     
     session = None  # obj must have sth. to record.
     auto_reconnect = True
@@ -131,19 +132,37 @@ class AB:
         if len(p4_chg_detail['depotFile']) != len(p4_chg_detail['action']):
             raise "p4_chg corrupted, could not be migrate to Alienbrain"
         
+        
+        self.new_changeset_as_default("noname.default")  # looks lifeless,  but it exists in a session
+        
+        
         #Q: how to know the local directory of a file from //depot without view mapping info? 
         for i in range(0, len(p4_chg_detail['action']) ):
             file = p4_chg_detail['depotFile'][i]  
             debug("file: %s \n" %  file )
             action = p4_chg_detail['action'][i]
             debug("action: %s \n" % action )
-            localdir = self.workspace_dir(file, p4env) # @attention: use the dict that contain the view, not the value of the key. 
+            localdir = self.workspace_dir("D:/p4migtest",file, p4env) # @attention: use the dict that contain the view, not the value of the key. 
             debug ("local dir is : %s \n " % localdir )
             
+            
+            #######################################################
+            # trial of alienbrain tool section.
+            #######################################################
             #CONT.
             # Test out all the actions offered by alienbrain and mapp
-            # * submit empty directory  ... (AB's GUI ... OK! )
+            # * submit empty directory  ... (AB's GUI ... OK! Scripting ...when 'ab import', auto generate a changeset, not like GUI. MUST create a changeset aforehand )
             # * group individual changes into ChangeSet ... ()
+            #    >>> import new file  without assigning a changeset(Scripting ... )
+            #    >>> new a file  
+            #        .... without assigning a changeset (Scripting ... no ok, ) 
+            #        .... with assigning a changeset (Scripting ... ) 
+            #        .... Q: ok with 'synchronize -importall'? 
+            #    >>> delete a file  
+            #        .... without assigning a changeset (Scripting ...  no action at all)
+            #        .... with assigning a changeset (Scripting ... script not OK, no action at all)
+            #        .... ESP: also remember to delete from local workspace, not just remove from   (ab delete -deletelocal <file>  )
+            #        .... ESP: avoid any kind of deletion-prompting.
             
         
             # * ESP, from manual ops, one action performed by p4.exe may be transferred to AB
@@ -151,12 +170,67 @@ class AB:
             #   then submit to AB server.
             
             
-            
-            
+            #######################################################
+            # process for migration.
+            #######################################################
+            #TODO, experiment with python's lambda here if you have extra time!
+            # TODO
+            if   action == "edit":
+                # check out the file into the default changeset
+                self.checkout(localdir)
+                debug("ready to perform [%s] on file:[%s]" %  (action, localdir))
+            elif action == "add" :
+                pass 
         
-            # apply the action in the alienbrain workdir.
-            
+        #all files/dirs processed, submit the changeset
+        self.submit_changeset()    
+        
+        # apply the action in the alienbrain workdir.
+    
+    def checkout(self, abs_path ): # to be more useful, *args should be merged into opts of the arguments and do some sanity check.
+        # TODO: may discriminate file/dir
+        cmd_str = " ".join(['ab','checkout', abs_path])
+        self.call(cmd_str)
+        
+    
+    def new_changeset_as_default(self, name=""):
+        """ since the pending change will all go to the default changeset which is explicitly specified by the users, 
+        It has to be made crystal clear in case any miss handling of changeset and changes.  
+        
+        It looks like the name has no use in the alienbrain database, just a temperary container name! 
+        
+        It would be better to use ruby alike block, like 
+          ab.new_changeset  do | chg|      
+               chg.import()
+               chg.move()
+               chg.delete()          
+          end
+        which makes code more expressive!
+        
+          @attention:  UNTESTED
+        """
+        cmd_str = " ".join(['ab','newchangeset', name])
+        self.call(cmd_str)
+        cmd_str = " ".join(['ab','setdefaultchangeset', name])
+        self.call(cmd_str)   
+        # TODO:  avoid error with existing named changeset
                 
+    def submit_changeset(self, name=None):
+        """
+        If name is empty , adding some preemptive process for the weak command line process
+        
+        @var name: The name of the change set to submit.
+        
+        @attention: UNTESTED, the 'submitpendingchanges -changeset <name> ' failed to work under vista , ab7 edition
+        """
+        if not name:
+            cmd_str = " ".join(['ab','setdefaultchangeset'])
+            self.call(cmd_str)
+        else:
+            cmd_str = " ".join(['ab','submitpendingchanges', '-changeset', name])  # failed or not working
+            self.call(cmd_str)
+        
+        
     def submit_file(self,file):    
         pass
     
@@ -197,7 +271,7 @@ class AB:
                     if key and value:       #store in new dict after some cleaning.
                         map_depot_to_local_dir.update( {key:value} )    
         debug(map_depot_to_local_dir)
-        
+        debug("-------------- find the map view ------------------")
         temp = []
         candidate = ""
         #TODO: ESP. potential mapping failure if single mapping on files, like \\depot
@@ -281,26 +355,26 @@ p4env = {
     'charset':'',
     #'customview':'''View:
     'view':'''
-    //depot/Alice2_Prog/Development/... //ZhuJiaCheng_test_specify_p4_env/Development/...
-    +//depot/Alice2_Prog/Tools/... //ZhuJiaCheng_test_specify_p4_env/Tools/...
-    +//depot/Alice2_Bin/PC_Dependencies/... //ZhuJiaCheng_test_specify_p4_env/PC_Dependencies/...
-    +//depot/Alice2_Bin/Binaries/... //ZhuJiaCheng_test_specify_p4_env/Binaries/...
-    +//depot/Alice2_Bin/Engine/... //ZhuJiaCheng_test_specify_p4_env/Engine/...
-    +//depot/Alice2_Bin/AliceGame/... //ZhuJiaCheng_test_specify_p4_env/AliceGame/...
-    +//depot/Alice2_Bin/*.* //ZhuJiaCheng_test_specify_p4_env/*.*
-    +//depot/Alice2_Branches/... //ZhuJiaCheng_test_specify_p4_env/Alice2_Branches/...
+     //depot/... //ZhuJiaCheng_test_specify_p4_env/...
 ''',
     # depre: 'workspace' : 'Admin_spicyfile_1666_NightlySlave',  # => buildbot auto-generated by rules
     }
 
-
+#    //depot/Alice2_Prog/Development/... //ZhuJiaCheng_test_specify_p4_env/Development/...
+#    +//depot/Alice2_Prog/Tools/... //ZhuJiaCheng_test_specify_p4_env/Tools/...
+#    +//depot/Alice2_Bin/PC_Dependencies/... //ZhuJiaCheng_test_specify_p4_env/PC_Dependencies/...
+#    +//depot/Alice2_Bin/Binaries/... //ZhuJiaCheng_test_specify_p4_env/Binaries/...
+#    +//depot/Alice2_Bin/Engine/... //ZhuJiaCheng_test_specify_p4_env/Engine/...
+#    +//depot/Alice2_Bin/AliceGame/... //ZhuJiaCheng_test_specify_p4_env/AliceGame/...
+#    +//depot/Alice2_Bin/*.* //ZhuJiaCheng_test_specify_p4_env/*.*
+#    +//depot/Alice2_Branches/... //ZhuJiaCheng_test_specify_p4_env/Alice2_Branches/...
 p4 = P4.P4()
 #ab = AB.AB()
 
 
 
 
-def p4_init():
+def p4_init(): # should input a p4env assigned by the API users
 
     p4.client = p4env['client']
     p4.port = p4env['port']
@@ -392,7 +466,7 @@ if __name__ == '__main__':
     
     ab = AB("C:/Program Files (x86)/alienbrain/Client/Application/Tools/ab.exe")
 #    
-#    ab.logon("Administrator", "mes0Spicy", "p4migtest ", "Spicyfile")
+    ab.logon("Administrator", "mes0Spicy", "p4migtest ", "Spicyfile")
 #    ab.getworkingpath()
 #    ab.setworkingpath("d:/p4migtest")
 #    ab.getworkingpath()
@@ -401,25 +475,28 @@ if __name__ == '__main__':
 #    ab.connected()
 #    print "end of commands"
 
+    #TODO: make sure in the p4 workspace, there is no 
 
     # ---------------------- p4 sandbox
-    #p4_get_changes()[0]
+    p4_get_changes()[0]
     
-    #change_workdir("D:/p4migtest")
-    #p4.run_sync("//depot/...@%s" % "1" )
-#    changes = p4_get_changes()
-#    debug("changes size %s"  % str(len(changes)) )
-#    for change in changes: 
-#        
-#        if int(change['change']) == 351:
-#            debug(" ..... " + str(change['change']) )
-#            debug("found change 12 \n")
-#            
-#            detail = p4_get_change_details(change)
-#            ab.apply_actions(detail)
-#            break;
+    demo_chg = str(351)
+    
+    change_workdir("D:/p4migtest")
+    p4.run("sync","-f","//depot/...@%s" % demo_chg )
+    changes = p4_get_changes()
+    debug("changes size %s"  % str(len(changes)) )
+    for change in changes: 
+        
+        if int(change['change']) == int(demo_chg):
+            debug(" ..... " + str(change['change']) )
+            debug("found change 12 \n")
+            
+            detail = p4_get_change_details(change)
+            ab.apply_actions(detail)
+            break;
 
-    ab.workspace_dir("c:/test", "//depot/Alice2_Prog/Tools/Buildbot/master/buildbot.tac", p4env)
+#    ab.workspace_dir("c:/test", "//depot/Alice2_Prog/Tools/Buildbot/master/buildbot.tac", p4env)
     
     debug("DEBUG: the following files has more than two mapping depot dirs, please check.")
     debug(ab.potential_failed_file_dir)
