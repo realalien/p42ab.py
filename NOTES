@@ -64,4 +64,35 @@ disadv. no-concept-of-class,e.g. method classification,
 D:\zjc\wr2\p42ab.py\src>ab checkout D:\p4migtest\projectA\b.txt
 Could not find "D:\p4migtest\projectA\b.txt" at the given path.
 
+
+2009.12.30
+* for each ab command, must capture the non-ok return value, e.g. connection failed, change set op failed.
+
+
+* solution for atomic operations,
+
+
+scenario#1: 
+    ..logon [OK]
+    	.. create_default_chgset[FAIL]
+    	>> force create or stop?
+    	
+scenario#2:
+	..logon [OK]   
+		.. create_default_chgset[OK]
+			.. each file/dir add/delete/edit action * N [FAILED]  # SUG: since that changelist will be not complete thus all the modification in that changelist should be removed. 
+
+
+sln#1, we can record the history of the operations, and force each operation should have a reversed operation corresponded, so if error occurs, just call those ones.
+     ... e.g. http://www.google.com/codesearch/p?hl=en#NsPYB2CqBp8/pisi/pisi/atomicoperations.py&q=lang:python%20atomic%20operation&sa=N&cd=5&ct=rc  
+	 ... adv: easy to imple
+	 ... disa:  if the commands are grouped like a tree, the reversed ops are difficult to call in correct sequence.
+
+
+sln#2,
+
+
+* TODO:  device unit test or mock object for it!
+
+
   

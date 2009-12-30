@@ -41,6 +41,7 @@ class AB:
         self.args = []
         self.output = ""
         self.potential_failed_file_dir = {}
+        self.failed_ab_commands = []        # list of 2-item tuples, for defensive audit use 
     
     def getworkingpath(self):
         self.args = []
@@ -87,14 +88,28 @@ class AB:
     # INFO, 
     def call(self,cmd_string):
         debug(cmd_string)
+        # ESP. get familiar with system call from python doc. the web page.
         process = subprocess.Popen(cmd_string, shell=True, stdin=subprocess.PIPE, 
                                    stdout=subprocess.PIPE )
         (child_stdout, child_stdin) = (process.stdout, process.stdin)
 #        out = sys.stdout.readlines()
 #        err = sys.stderr.readlines()
 #        debug(out) 
-        debug(child_stdout.readlines())
-        
+
+
+        # detect for error, usually the error will be output the stdout.
+        stdout = child_stdout.readlines()
+        debug(stdout)
+        if stdout:
+            # Q: shall I stop the processing(migration)?
+            
+            # SUG: it would be better to record the erorr.
+            failed_ab_commands.append( (cmd_string, stdout ) )
+            # Q: how to implement a atomic process, making sure the interrupted process can be rollbacked. 
+            # CONT. looking into other project impl.
+            #
+            
+            
         process.stdin.close()
         val = process.wait()
         if  val != 0:
@@ -149,7 +164,6 @@ class AB:
             #######################################################
             # trial of alienbrain tool section.
             #######################################################
-            #CONT.
             # Test out all the actions offered by alienbrain and mapp
             # * submit empty directory  ... (AB's GUI ... OK! Scripting ...when 'ab import', auto generate a changeset, not like GUI. MUST create a changeset aforehand )
             # * group individual changes into ChangeSet ... ()
@@ -383,17 +397,23 @@ def p4_init(): # should input a p4env assigned by the API users
     #p4.charset = p4env['charset']
     #TODO: lock format by setting API level!!!
     p4.exception_level = 1 # ignore "File(s) up-to-date"
-    if not p4.connected(): p4.connect() 
+    try:
+        if not p4.connected(): p4.connect() 
+    except P4Exception:
+        for e in p4.errors:
+            print e
+    #TODO: implement exception according to 
+    #  https://kb.perforce.com/HardwareOsNe..rkReference/NetworkIssues/NetworkError..ndowsServer
     return p4
-#    except P4Exception:
-#        for e in p4.errors:
-#            print e
 #    finally:
 #        p4.disconnect()
         
 def change_workdir(dir):
     """ change to the desired the directory for migration, in case of
-    any undesired default directory."""
+    any undesired default directory.
+    
+    @var dir: the absolute directory in which the migration is carried out.    
+    """
     p4 = p4_init()
     clientspec = p4.fetch_client()
     if os.path.exists(dir):

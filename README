@@ -17,8 +17,11 @@ How-to:
 
 
 Ref:
+
 * p42svn 
 * http://code.google.com/p/python-p4lib/
+* a very good example of API
+http://www.google.com/codesearch/p?hl=en#YwaaF8DorRY/depot_tools/development/release/win/python_24/Lib/site-packages/gvn/svncmd.py&q=lang:python%20atomic%20operation&d=6
 * http://www.devshed.com/c/a/Python/Windows-Programming-in-Python/3/
 * http://code.google.com/p/dedafx-dev/source/browse/trunk/python/alienbrain.py [NOT SUG]
 * http://www.perforce.com/perforce/conferences/us/2009/Presentations/Knop-AdventuresinScriptingLand-paper.pdf
