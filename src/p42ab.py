@@ -104,7 +104,7 @@ class AB:
             # Q: shall I stop the processing(migration)?
             
             # SUG: it would be better to record the erorr.
-            failed_ab_commands.append( (cmd_string, stdout ) )
+            self.failed_ab_commands.append( (cmd_string, stdout ) )
             # Q: how to implement a atomic process, making sure the interrupted process can be rollbacked. 
             # CONT. looking into other project impl.
             #
@@ -114,6 +114,9 @@ class AB:
         val = process.wait()
         if  val != 0:
             print "There were some errors(not error really!) , wait returns %s"  % val
+            return False
+        else:
+            return True
     
     # damned, it should be generated from documentation or self-help.
     def logon(self, username, password, project, ab_server):
@@ -153,11 +156,11 @@ class AB:
         
         #Q: how to know the local directory of a file from //depot without view mapping info? 
         for i in range(0, len(p4_chg_detail['action']) ):
-            file = p4_chg_detail['depotFile'][i]  
-            debug("file: %s \n" %  file )
+            file_in_depot = p4_chg_detail['depotFile'][i]  
+            debug("file: %s \n" %  file_in_depot )
             action = p4_chg_detail['action'][i]
             debug("action: %s \n" % action )
-            localdir = self.workspace_dir("D:/p4migtest",file, p4env) # @attention: use the dict that contain the view, not the value of the key. 
+            localdir = self.workspace_dir("D:/p4migtest",file_in_depot, p4env) # @attention: use the dict that contain the view, not the value of the key. 
             debug ("local dir is : %s \n " % localdir )
             
             
@@ -189,11 +192,14 @@ class AB:
             #######################################################
             #TODO, experiment with python's lambda here if you have extra time!
             # TODO
-            if   action == "edit":
+            if action == "add":
+                self.import_file_or_dir(file_in_depot)
+            elif   action == "edit":
                 # check out the file into the default changeset
                 self.checkout(localdir)
                 debug("ready to perform [%s] on file:[%s]" %  (action, localdir))
-            elif action == "add" :
+                
+            elif action == "delete" :
                 pass 
         
         #all files/dirs processed, submit the changeset
@@ -201,6 +207,54 @@ class AB:
         
         # apply the action in the alienbrain workdir.
     
+    def import_file_or_dir(self, a_depot_path):
+        """delegate the 'ab import' command, 
+        
+        @attention: the file is a depot path from p4 server, when being imported by 'ab import', it should automatically import the parent directory if not present.  
+        
+        TODO: I wish to set the command options by default, maybe later allowing user to specify!
+        """
+#        IMPORT_PARAM = [ "-comment" , "-parent", "-dontgetlocal", "-dontfollowsymlink", "-ignoreexisting", "-norecursive", "-checkout"]
+#        for arg in args:
+#            if arg not in IMPORT_PARAM: raise "Invalid parameter for import command"
+#        for key in kwargs.keys():
+#            if key not in IMPORT_PARAM: raise "Invalid parameter for import command"
+        
+        debug("ready to import: " + a_depot_path)
+        parent_path = ""
+        project_rel_path = ""            
+        if "/" in a_depot_path: # may has parent dir  # TODO: must have at least 3 slashes to make sure there are an directory
+            parent_path = os.path.dirname(a_depot_path)
+        
+        if a_depot_path:
+            project_rel_path = parent_path.replace("//depot","")  # remember to replace both heading and tailing slash around depot.
+
+        #assemble for one opt
+        if project_rel_path and project_rel_path.strip() != "":
+            ppath_str = "-parent " + project_rel_path
+        else:
+            ppath_str  = ""
+           
+        #assembly comment
+        #comment = "-comment 'I did it'"
+        
+        debug("parent_path: " + parent_path) 
+        debug("ppath_str: " + ppath_str)
+        debug("project_rel_path: [" + project_rel_path+"]")
+        
+        if  project_rel_path.strip() != "":  
+            if not self.existsindb(project_rel_path): 
+                self.import_file_or_dir("//depot"+project_rel_path) # since the recursive call need a depot path, we have to make add it ok
+#        cmd_str = " ".join(['ab','import', project_rel_path, ppath_str])
+        cmd_str = " ".join(['ab','import', self.workspace_dir("d:/p4migtest", a_depot_path, p4env), ppath_str, "-ignoreexisting"])
+        debug("import file ..." + cmd_str)
+        self.call(cmd_str)
+    
+    def existsindb(self, path):
+        cmd_str = " ".join(['ab','existsindb', path])
+        return self.call(cmd_str)
+        
+        
     def checkout(self, abs_path ): # to be more useful, *args should be merged into opts of the arguments and do some sanity check.
         # TODO: may discriminate file/dir
         cmd_str = " ".join(['ab','checkout', abs_path])
@@ -238,7 +292,7 @@ class AB:
         @attention: UNTESTED, the 'submitpendingchanges -changeset <name> ' failed to work under vista , ab7 edition
         """
         if not name:
-            cmd_str = " ".join(['ab','setdefaultchangeset'])
+            cmd_str = " ".join(['ab','submitpendingchanges'])
             self.call(cmd_str)
         else:
             cmd_str = " ".join(['ab','submitpendingchanges', '-changeset', name])  # failed or not working
@@ -500,7 +554,7 @@ if __name__ == '__main__':
     # ---------------------- p4 sandbox
     p4_get_changes()[0]
     
-    demo_chg = str(351)
+    demo_chg = str(6)
     
     change_workdir("D:/p4migtest")
     p4.run("sync","-f","//depot/...@%s" % demo_chg )

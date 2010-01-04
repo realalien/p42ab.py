@@ -96,3 +96,12 @@ sln#2,
 
 
   
+2010.1.4
+* python, research on unit-test method for command line wrapper program
+
+* Q: there is a problem, when import a newly created directory, the files below will also auto imported, 
+since I am trying to import dirctory from a new file below, either I aborted the file importation
+or IS there any where to specify just dirctory?
+
+
+
