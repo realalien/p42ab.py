@@ -3,19 +3,31 @@
 import os, sys
 import subprocess
 
+#TODO: 2010.1.5 clean the code
+#TODO: write utilities methods to prevent any unexpected operations in the migration.
+
 #P4_TO_AB_ACTIONS = {
-#      'add'       => \&p4add2svn,
-#      'delete'    => \&p4delete2svn,
-#      'edit'      => \&p4edit2svn,
-#      'branch'    => \&p4branch2svn,
-#      'integrate' => \&p4integrate2svn,
+#      'add'       => \&p4add2svn,       # DONE
+#      'delete'    => \&p4delete2svn,    # DONE
+#      'edit'      => \&p4edit2svn,      # DONE
+#      'branch'    => \&p4branch2svn,    # ???
+#      'integrate' => \&p4integrate2svn, # ???
 #      'purge'     => \&p4purge2svn);                
 #}
 
 
 def debug(text):
     print("------>>>  " + str(text))
-    
+
+def quoted(text):
+    # avoid None param
+    if text:
+        str = text
+    # add quotation mark for dir/file names with blankspace    
+    if not text.startswith("\""):
+        return "\"" + str + "\""
+    else:
+        return str  
     
 class NotImplementedException(Exception):
     pass
@@ -96,10 +108,9 @@ class AB:
 #        err = sys.stderr.readlines()
 #        debug(out) 
 
-
         # detect for error, usually the error will be output the stdout.
         stdout = child_stdout.readlines()
-        debug(stdout)
+        debug(stdout) 
         if stdout:
             # Q: shall I stop the processing(migration)?
             
@@ -117,7 +128,7 @@ class AB:
             return False
         else:
             return True
-    
+        
     # damned, it should be generated from documentation or self-help.
     def logon(self, username, password, project, ab_server):
         cmd_str = " ".join(['ab', 'logon','-u', username, '-p',password, '-d', project, '-s', ab_server])
@@ -196,16 +207,54 @@ class AB:
                 self.import_file_or_dir(file_in_depot)
             elif   action == "edit":
                 # check out the file into the default changeset
-                self.checkout(localdir)
+                self.checkout(localdir)   #also see: NOTES 2010.1.5
                 debug("ready to perform [%s] on file:[%s]" %  (action, localdir))
-                
             elif action == "delete" :
+                self.delete_file_or_dir(file_in_depot)
+            elif action == "branch" :
+                self.create_branch()
+            elif action == "integrate" :
                 pass 
-        
         #all files/dirs processed, submit the changeset
-        self.submit_changeset()    
+        comm = str(p4_chg_detail['desc'].strip())  # remove the last carriage return key.
+        self.submit_changeset(comment=comm)    
         
         # apply the action in the alienbrain workdir.
+    
+    def delete_file_or_dir(self, a_depot_path):
+        
+        # ----------------------------------------
+        # TODO: refactor to method
+        debug("ready to delete: " + a_depot_path)
+        parent_path = ""
+        project_rel_path = ""            
+        if "/" in a_depot_path: # may has parent dir  # TODO: must have at least 3 slashes to make sure there are an directory
+            parent_path = os.path.dirname(a_depot_path)
+        
+        if a_depot_path:
+            project_rel_path = parent_path.replace("//depot","")  # remember to replace both heading and tailing slash around depot.
+
+        #assemble for one opt
+        if project_rel_path and project_rel_path.strip() != "":
+            ppath_str = "-parent " + "\"" + project_rel_path + "\""
+        else:
+            ppath_str  = ""
+        
+        #assemble Response, see: "Command Line Tool.pdf, P11, Default Response" of AlienBrain 7 documentation.
+        response = "-response:Delete.Warning 0"   
+           
+        #assembly comment
+        #comment = "-comment 'I did it'"
+        
+        debug("p4 depot path: " + a_depot_path) 
+        debug("parent_path: " + parent_path) 
+        debug("ppath_str: " + ppath_str)
+        debug("project_rel_path: [" + project_rel_path+"]")
+        # ----------------------------------------
+        if self.existsindb(quoted(project_rel_path)) and self.existsindb( quoted(a_depot_path.replace("//depot","")) ):
+             cmd_str = " ".join(['ab','delete', quoted(self.workspace_dir("d:/p4migtest", a_depot_path, p4env)) , "-deletelocal", response])
+             self.call(cmd_str)
+        
     
     def import_file_or_dir(self, a_depot_path):
         """delegate the 'ab import' command, 
@@ -231,7 +280,7 @@ class AB:
 
         #assemble for one opt
         if project_rel_path and project_rel_path.strip() != "":
-            ppath_str = "-parent " + project_rel_path
+            ppath_str = "-parent " + "\"" + project_rel_path + "\""
         else:
             ppath_str  = ""
            
@@ -246,7 +295,7 @@ class AB:
             if not self.existsindb(project_rel_path): 
                 self.import_file_or_dir("//depot"+project_rel_path) # since the recursive call need a depot path, we have to make add it ok
 #        cmd_str = " ".join(['ab','import', project_rel_path, ppath_str])
-        cmd_str = " ".join(['ab','import', self.workspace_dir("d:/p4migtest", a_depot_path, p4env), ppath_str, "-ignoreexisting"])
+        cmd_str = " ".join(['ab','import', "\"" + self.workspace_dir("d:/p4migtest", a_depot_path, p4env) + "\"", ppath_str, "-ignoreexisting"]) # add quotation around file/dir names
         debug("import file ..." + cmd_str)
         self.call(cmd_str)
     
@@ -283,7 +332,7 @@ class AB:
         self.call(cmd_str)   
         # TODO:  avoid error with existing named changeset
                 
-    def submit_changeset(self, name=None):
+    def submit_changeset(self, name=None, comment="No comment!"):
         """
         If name is empty , adding some preemptive process for the weak command line process
         
@@ -292,10 +341,10 @@ class AB:
         @attention: UNTESTED, the 'submitpendingchanges -changeset <name> ' failed to work under vista , ab7 edition
         """
         if not name:
-            cmd_str = " ".join(['ab','submitpendingchanges'])
+            cmd_str = " ".join(['ab','submitpendingchanges', '-comment', quoted(comment)])
             self.call(cmd_str)
         else:
-            cmd_str = " ".join(['ab','submitpendingchanges', '-changeset', name])  # failed or not working
+            cmd_str = " ".join(['ab','submitpendingchanges', '-changeset', name, '-comment', quoted(comment)])  # failed or not working
             self.call(cmd_str)
         
         
@@ -554,7 +603,7 @@ if __name__ == '__main__':
     # ---------------------- p4 sandbox
     p4_get_changes()[0]
     
-    demo_chg = str(6)
+    demo_chg = str(15)
     
     change_workdir("D:/p4migtest")
     p4.run("sync","-f","//depot/...@%s" % demo_chg )
@@ -576,4 +625,5 @@ if __name__ == '__main__':
     debug(ab.potential_failed_file_dir)
     
     
-    
+#IMPORTANT NOTES:
+# local p4 server , change 6, 8 ,  can't be migrated due to file unchanged.    

@@ -105,3 +105,33 @@ or IS there any where to specify just dirctory?
 
 
 
+2010.1.5
+* from local p4 server, mig of cl#6 has no effect on ab, the version of file does not change at all. 
+ even though the status change be view in the GUI, with cmds "ab checkout D:/p4migtest/demobox/a.txt", "ab submitpendingchanges",
+ the history of file and changeset can not be found!
+ This creates a problem of if the p4 change has no modified file, but a check-out/check-in action, ab won't recognize.
+ Q: can I use check-in when there are only 'edit' one from p4 server.
+ A: no, also can not show a version increment
+ IDEA: 
+ * ^_^ neglect the unmodified file, adv: , disadv: file version won't change and won't record the related info from changelist of p4 as its comment; 
+ * add a blank space at the end of file? adv: explict change goes into changeset, file ver. will change and record p4 changelist info.
+ 
+* ESP.SUG. 
+  it looks that writing unit-tests is not quite hard, but very useful.
+  there are many benefits:
+  > ensure function work properly even after some modification.
+  > no need of tons of debug logging.
+  
+   --- Scenario ---
+   1. if parent folder needs importing, by default all the files underneath are imported, try to eliminize the command call when 
+
+   2. session timeout
+   
+   
+      
+   
+* It would be nice to get a table of function comparison between SVN, Perforce and Alienbrain!    
+    
+
+* ESP. it looks like the alienbrain command will take much time in migration, make demo to show it won't ask session relogin during the migration.
+ 
