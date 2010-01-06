@@ -135,3 +135,22 @@ or IS there any where to specify just dirctory?
 
 * ESP. it looks like the alienbrain command will take much time in migration, make demo to show it won't ask session relogin during the migration.
  
+2010.1.6
+* Q: How can I branch subfolder in the AlienBrain? Supposing that we have existing directory in which the p4 branched code, how do I use this as the alienbrain working dir?
+  hint: from doc, it reads, "Branching can now occur on every item in the project structure. You can create new branches from projects, 
+  folders or single files. NXN alienbrain Studio V7 Server transparently handles the parent/child inheritance of the objects in the new branch."
+  
+* EXPER: It is tested out that the alienbrain can not branch from a folder by labeling the directory. When trying to create a branch through
+"Tools->Branch Manager->Create..., step Branch Off Time, by label time", radio box invalid due to "No label on project set".
+
+* very strange output
+
+D:\p4migtest>ab cb testaa -type "Release Branch" -parent "Root Branch"
+Command: "createbranch", does not support these parameters: "-type"!
+
+D:\p4migtest>ab version
+alienbrain
+8.1.0.7300
+
+
+

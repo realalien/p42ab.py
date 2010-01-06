@@ -155,7 +155,7 @@ class AB:
 
         
     
-    def apply_actions(self, p4_chg_detail):
+    def apply_actions_on_files(self, p4_chg_detail):
         """ add, edit, delete files according to an perforce change info"""
         # validation of p4_chg, TODO: more strict check
         if len(p4_chg_detail['depotFile']) != len(p4_chg_detail['action']):
@@ -211,16 +211,52 @@ class AB:
                 debug("ready to perform [%s] on file:[%s]" %  (action, localdir))
             elif action == "delete" :
                 self.delete_file_or_dir(file_in_depot)
-            elif action == "branch" :
-                self.create_branch()
+            elif action == "branch" :   # ESP, I doubt branch migration should not be carried out based on each file, maybe better based on change of higher level
+                # Q: in AB, I can not create a branch from directory, which means I have to branch all the files/folders of the 
+                # 'Root Branch'  
+                
+                # IMPORTANT: after some experiments, in AB, I found that after encountering a change with branching action from P4, 
+                # there is no need to get that change(hopefully there is no other action), we can create branch using existing files
+                # in the alienbrain server(hopefully having no previous changelists missed) , and the directory created by p4 branching
+                # should be the working path of the branch.
+                 
+                # SUG: familiar yourself with branch/integrate functionalities in 'Alienbrain Advanced' GUI tool                
+                pass
             elif action == "integrate" :
+                
+                # INFO: for alienbrain, we can either integrate from 'a branch's folder'(? why not multiple folder?) or from 'submitted changelist'
+                # similarly, in p4, integrate from branch spec, 
+                
                 pass 
         #all files/dirs processed, submit the changeset
         comm = str(p4_chg_detail['desc'].strip())  # remove the last carriage return key.
         self.submit_changeset(comment=comm)    
         
         # apply the action in the alienbrain workdir.
-    
+    def create_branch(self, name, branch_view):
+        """
+        @var branch_view: a map from which the alienbrain should set branch's working path.
+        Q: one problem remains, how to get all the branch info from a changelist, how can I ensure that submit only works on branching. 
+        
+        raw data of view from p4:
+                //depot/projectA/... //depot/projectA_VS/...
+        
+        """
+        #TODO: exception handle, rollback if any call fails.
+        # create branch
+        cmd_str = " ".join(['ab','createbranch', name, '-parent', quoted('Root Branch') ])
+        self.call(cmd_str)
+        # shift to branch in order to carry out branch related task
+        cmd_str = " ".join(['ab','setactivebranch', name ])
+        self.call(cmd_str)
+        # set working path
+        cmd_str = " ".join(['ab','setworkingpath',  ])
+        self.call(cmd_str)
+        # shift back to main branch
+        cmd_str = " ".join(['ab','setactivebranch', quoted('Root Branch') ])
+        self.call(cmd_str)
+        
+        
     def delete_file_or_dir(self, a_depot_path):
         
         # ----------------------------------------
@@ -346,6 +382,7 @@ class AB:
         else:
             cmd_str = " ".join(['ab','submitpendingchanges', '-changeset', name, '-comment', quoted(comment)])  # failed or not working
             self.call(cmd_str)
+
         
         
     def submit_file(self,file):    
@@ -549,7 +586,31 @@ def p4_get_changes():
     debug(changes[0].keys())
     
     return changes
+
+def tell_files_actions(change):
+    """Given an changelist, it shall tell how many files fall into the categories of 'add','delete','edit','branch', 'integral'
     
+    @return: a dict containing the number of each action.
+    """
+    if type(change) == type(dict()) and change.has_key("action"):
+        actions = change['action']    
+        print("in change, add: %d, edit: %d, delete: %d, branch: %d, integrate: %d" % 
+                    ( actions.count("add"), actions.count("edit"),actions.count("delete"),
+                      actions.count("branch"),actions.count("integrate") )  )
+    else:
+        print("no change spicified or no actions found!")
+        
+    return {"add":actions.count("add"), 
+            "edit":actions.count("edit"),
+            "delete":actions.count("delete"),
+            "branch":actions.count("branch"),
+            "integrate":actions.count("integrate") }
+
+def is_branch_changelist(change):
+    if type(change) == type(dict()) and change.has_key("action") and ("branch" in change['action']):
+        return True
+    else:
+        return False
 
 def p4_get_change_details(change):
     change_num = change['change'];
@@ -603,20 +664,30 @@ if __name__ == '__main__':
     # ---------------------- p4 sandbox
     p4_get_changes()[0]
     
-    demo_chg = str(15)
+    demo_chg = str(352)
     
     change_workdir("D:/p4migtest")
     p4.run("sync","-f","//depot/...@%s" % demo_chg )
     changes = p4_get_changes()
     debug("changes size %s"  % str(len(changes)) )
     for change in changes: 
+
         
         if int(change['change']) == int(demo_chg):
             debug(" ..... " + str(change['change']) )
             debug("found change 12 \n")
             
+            
             detail = p4_get_change_details(change)
-            ab.apply_actions(detail)
+            
+            tell_files_actions(detail)
+            # TODO: Do branch or intergrate here? since there is no need to iterate through files in the change obj.
+            if is_branch_changelist(detail):
+                # get the branch details ? How do I know the name?
+                ab.create_branch(name)
+            if is_integrate_changelist(detail):
+                pass #TODO
+            ab.apply_actions_on_files(detail)
             break;
 
 #    ab.workspace_dir("c:/test", "//depot/Alice2_Prog/Tools/Buildbot/master/buildbot.tac", p4env)

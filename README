@@ -10,7 +10,8 @@ and do some API design exercises.
 
 
 Notice:
-	Since some operations like "Branch", ""
+* "Changelist"(as in Perforce),"changeset"(as in AlienBrain) and "change" are the inter-changeable nouns, either of them
+  contains a set of files under some kind of SCM operations. 
 
 
 Progress:
@@ -31,3 +32,4 @@ http://www.google.com/codesearch/p?hl=en#YwaaF8DorRY/depot_tools/development/rel
 * http://code.google.com/p/dedafx-dev/source/browse/trunk/python/alienbrain.py [NOT SUG]
 * http://www.perforce.com/perforce/conferences/us/2009/Presentations/Knop-AdventuresinScriptingLand-paper.pdf
 * http://www.oreillynet.com/onlamp/blog/2007/08/pymotw_subprocess_1.html
+* http://www.perforce.com/perforce/media_library/tutorials.html   # nice tutorials on P4 tools
