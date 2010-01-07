@@ -152,5 +152,12 @@ D:\p4migtest>ab version
 alienbrain
 8.1.0.7300
 
+2010.1.7
+* can I learn sth. about unit test development from django? after listening the oredev's video, renaissance craftsman from Robert C. Martin,
+ I never think he is a so flamboyant person in advertising.
+ If it's easy to auto test in game dev, why no prevailing practice? Human eye is so indispensable.
 
+* Holy! I am reading IOC in python. cOOl? 
 
+* ESP. to minimize the operations at the p4 client, also since there are not much p4 operations in migration work.
+ I think it is OK to generate a dict of info and then, migration from that dict of info.

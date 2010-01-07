@@ -1,7 +1,7 @@
 
 Purpose:
     To migrate all the data from a Perforce(SCM) server to the AlienBrain server,
-includes one-time database migration and changelist(ChangeSet) sync.  
+includes one-time database migration and later changelist(ChangeSet) sync.  
     This project tends to wrap the 'ab.exe' and 'p4.exe' commands , rather than being a batch
 processing. Since not all the SCM actions will be used in migration, so the wrapper is only
 useful for simple migration, for now, a feature request I have to get done.
@@ -12,7 +12,8 @@ and do some API design exercises.
 Notice:
 * "Changelist"(as in Perforce),"changeset"(as in AlienBrain) and "change" are the inter-changeable nouns, either of them
   contains a set of files under some kind of SCM operations. 
-
+* I prefer OO class rather than plain functions because I think this provides a layer of classification so that
+it will be easier for a robot to manipulate on behalf of me; easier for loading in interactive session; unit test?;
 
 Progress:
 [write simple prototype]
@@ -33,3 +34,4 @@ http://www.google.com/codesearch/p?hl=en#YwaaF8DorRY/depot_tools/development/rel
 * http://www.perforce.com/perforce/conferences/us/2009/Presentations/Knop-AdventuresinScriptingLand-paper.pdf
 * http://www.oreillynet.com/onlamp/blog/2007/08/pymotw_subprocess_1.html
 * http://www.perforce.com/perforce/media_library/tutorials.html   # nice tutorials on P4 tools
+* http://docs.python.org/library/logging.html   # python logging
