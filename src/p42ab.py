@@ -102,12 +102,6 @@ class AlienBrainCLIWrapper:
 
         logger.debug("AlienBrainCLIWrapper#__init__ ... done! ")  # better if there is a post function call. Some modules?
     
-    def getworkingpath(self):
-        self.args = []
-        self.args.extend("getworkingpath")
-        self.call()
-        return self.output
-    
 #    def call(self):
 #        self.output = os.popen(self.executable + " " + " ".join(self.args) ).read()
 #        return self.output
@@ -195,9 +189,6 @@ class AlienBrainCLIWrapper:
         #TODO: avoid blankspace and slash '\'
         cmd_str = " ".join(['ab','getworkingpath'])
         self.call(cmd_str)
-    
-
-        
     
     def apply_actions_on_files(self, p4_chg_detail):
         """ add, edit, delete files according to an perforce changelist spec
@@ -451,7 +442,11 @@ class AlienBrainCLIWrapper:
         pass
 
     def workspace_dir(self, workspace_basedir, a_depot_path, view):
-        """ map the //depot... to local directory from a preset view of p4 workspace,
+        """ 
+        I think it's a good way to compile the the first part of view mapping as a regular express, 
+        then matching a_deport_path to find the most suitable one!"
+        
+        map the //depot... to local directory from a preset view of p4 workspace,
         this method should give a absolute directory if fed one directory in the depot. 
         The absolute path of a file is got from p4's view and p4's client specification, 
         the path will be used to apply actions at the alienbrain's side.
@@ -465,23 +460,8 @@ class AlienBrainCLIWrapper:
         
         # template replace
         # TODO: see if neccessary!
-        map_depot_to_local_dir = {}
+        map_depot_to_local_dir = self.parse_p4_view_map(view)
         symbolic_workspace_dir = ""   # in a symbolic path
-        if type(view)  == type(dict()):
-            # parse the multiple line of view mapping, hopefully each entry is on the just one line.
-            view = view['view']
-            lines = view.split("\n")
-            for line in lines:
-                line = line.strip()
-                if  line.strip().startswith("//depot") or line.strip().startswith("+//depot"):
-                    (key, value ) = line.split(" ")
-                    key = key.strip()       #remove heading/trailing spaces 
-                    if key.startswith("+"): #remove multiple line view symbol "+"
-                        key = key[1:]
-                    if key and value:       #store in new dict after some cleaning.
-                        map_depot_to_local_dir.update( {key:value} )    
-        debug(map_depot_to_local_dir)
-        debug("-------------- find the map view ------------------")
         temp = []
         candidate = ""
         #TODO: ESP. potential mapping failure if single mapping on files, like \\depot
@@ -514,7 +494,43 @@ class AlienBrainCLIWrapper:
         
         # return map_depot_to_local_dir
 
-    
+    def parse_p4_view_map(self, view):
+        """
+        @param view: map
+        """
+        
+        map_depot_to_local_dir = {}
+        symbolic_workspace_dir = ""   # in a symbolic path
+        if type(view)  == type(dict()):
+            # parse the multiple line of view mapping, hopefully each entry is on the just one line.
+            view = view['view']
+            lines = view.split("\n")
+            for line in lines:
+                line = line.strip()
+                
+                
+                if  line.strip().startswith("//depot") or line.strip().startswith("+//depot"):
+                    if len(line.split(" ")) > 2 : 
+                        logger.error(line + "<<<line has more than 1 blankspace, we won't process this entry. Does a directory name have spaces?!")
+                        continue
+                    (key, value ) = line.split(" ")
+                    key = key.strip()       #remove heading/trailing spaces
+                    # to avoid file mapping, just mapping to the directory
+                    if not key.endswith("..."):
+                        key = os.path.dirname(key)
+                    if not key.endswith("..."):
+                        value = os.path.dirname(value)
+                        
+                    if key.startswith("+"): #remove multiple line view symbol "+"
+                        key = key[1:]
+                    if key.startswith("-"):
+                        pass                #we don not add "-//depot//somewhere" entry as files in that directory  usually do not exist in depot, thus no migration.
+                    if key and value:       #store in new dict after some cleaning.
+                        map_depot_to_local_dir.update( {key:value} )    
+        debug(map_depot_to_local_dir)
+        debug("-------------- find the map view ------------------")
+        
+        return map_depot_to_local_dir
 #if __name__ == '__main__':
 #    ab = AB("C:\Program Files (x86)\alienbrain\Client\Application\Tools\ab.exe")
 #    print(ab.getworkingpath())
