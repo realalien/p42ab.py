@@ -1,7 +1,7 @@
 
 
 import unittest
-import sys
+import os, sys
 import re
 import fnmatch
 
@@ -109,7 +109,7 @@ class AlienBrainCLIWrapperTest(unittest.TestCase):
           
         # ---------   python regex matching experiment  -----------
         # TODO: generate the pattern from a string of directory
-        pattern_file = "^aa\/bb\/cc\/[^\/]\.txt$"   # why using []
+        pattern_file = "^aa\/bb\/cc\/[^\/]\.txt$"   # TODO: missing * after ] ?
         pattern_dir  = "^dir1\/dir\/dir1" 
         
         
@@ -129,13 +129,9 @@ class AlienBrainCLIWrapperTest(unittest.TestCase):
         # if no files match found, prepare directory matching.
         string = "aa/bb/cc/a/..."
     
-    def _format_view_key_to_pattern(self, string):
-            return "^"+string.replace("/","\\/").replace("...",".*")+"$"     
+     
         
     def test_format_view_key_to_pattern(self):
-        """ to convert a p4workspace's //depot directory into a pattern for later search """    
-        
-        
         
         a = "//depot/directory/a.txt"
         a_pat = "^\/\/depot\/directory\/a.txt$"
@@ -143,72 +139,128 @@ class AlienBrainCLIWrapperTest(unittest.TestCase):
         result = re.match(a_pat, a)
         self.assertTrue( result != None )
         # make sure the pattern is what we need.
-        self.assertEqual( self._format_view_key_to_pattern(a), a_pat )
+        self.assertEqual( self.ab_agent.format_view_key_to_pattern(a), a_pat )
         
         a = "//depot/directory/..."
         # although the pattern can match the 'a.txt', but we use other function to choose the best suitable one, 
         # see: _get_p4_view_key
         a_pat = "^\/\/depot\/directory\/.*$" 
         # make sure the pattern is what we need.
-        self.assertEqual( self._format_view_key_to_pattern(a), a_pat )
+        self.assertEqual( self.ab_agent.format_view_key_to_pattern(a), a_pat )
+        
+        
+        a = "//depot/directory/*.*"
+        a_file = "//depot/directory/ccc.doc"
+        a_pat = "^\/\/depot\/directory\/[^\/]*\.[^\/]*$"
+        # make sure pattern can be used to check
+        result = re.match(a_pat, a_file)
+        self.assertTrue( result != None )
+        # make sure the pattern is what we need.
+        self.assertEqual( self.ab_agent.format_view_key_to_pattern(a), a_pat )
 
         # Q: Any possible the strange pattern of p4workspace view key?
         
-        
+      
     
     # Q: Since this test depends on test_format_view_key_to_pattern, is there any practice 
     #    like annotation or other coding techniques to make sure the dependent ones are OK? 
-    def test_single_match(self):
+    def test_single_best_match(self):
         """Given one file, it should only match a single entry of p4workspace's //depot path,
         if //depot path is a file path, if exact entry not found, fall back to a //depot parent path search.
         """
         
-        a_depot_path = "//depot/directory/a.txt"
+        a_depot_path1 = "//depot/directory/a.txt"
+        a_depot_path11 = "//depot/directorya.txt"
         a_depot_path2 = "//depot/directory/b.txt"
         a_depot_path3 = "//depot/c.txt"
+        a_depot_path4 = "//depot/a"         # should best match to "//depot/a", not ""//depot/...""
+        a_depot_path5 = "//depot/directory/.*"  #
         a_depot_path_invalid = "//invalid/depot/path"
+        # ESP. do NOT change the sequence of the key, only add entry at the end of the list.
         depot_view_keys = [ "//depot/directory/...",
-                            "//depot/a.txt", 
+                            "//depot/a.txt",   
                             "//depot/directory/a.txt",
-                            "//depot/..." # any depot path should fall onto this entry if no other entry matched.    
+                            "//depot/...",  # any depot path should fall onto this entry if no other entry matched.
+                            "//depot/a",     # test out with "//depot/...", making sure key for the 'a_depot_path4' won't fall back to "//depot/..." 
+                            "//depot/*.*",    # should best match over "//depot/..." if meets a file
+                            # anticipate more cases! List the un-handled ones below.
                             ]
         
-        # TODO: move to AlienBrainCLIWrapper or Util class!
-        def _get_p4_view_key(depot_path, depot_view_keys):
-            """find the most suitable depot_view_keys acoording to a depot path"""
-            
-            
-            
-            
-            return 
+        # a_depot_path1 should match depot_view_keys[2]
+        self.assertTrue( re.match( self.ab_agent.format_view_key_to_pattern("//depot/directory/..." ), a_depot_path1) )                   
+        self.assertEqual( self.ab_agent.get_single_best_match(a_depot_path1, depot_view_keys) , "//depot/directory/a.txt" )    
         
-        # a_depot_path should find depot_view_keys[2]                   
-        self.assertEqual( _get_p4_view_key(a_depot_path) , depot_view_keys[2] )    
+        # a_depot_path11 should have two candidates, but still a single best match.
+        self.assertTrue( re.match( self.ab_agent.format_view_key_to_pattern("//depot/..." ), a_depot_path11) )
+        self.assertTrue( re.match( self.ab_agent.format_view_key_to_pattern("//depot/*.*" ), a_depot_path11) )
+        self.assertEqual( self.ab_agent.get_single_best_match(a_depot_path11, depot_view_keys) , "//depot/*.*"  )
         
-        # a_depot_path2 should find depot_view_keys[0]   
-        self.assertEqual( _get_p4_view_key(a_depot_path2) , depot_view_keys[0] ) 
+        # a_depot_path2 should match depot_view_keys[0]   
+        self.assertEqual( self.ab_agent.get_single_best_match(a_depot_path2, depot_view_keys) , "//depot/directory/..." ) 
         
-        # a_depot_path3 should find depot_view_keys[3]
-        self.assertEqual( _get_p4_view_key(a_depot_path3) , depot_view_keys[3] )    
+        # a_depot_path3 should match depot_view_keys[3]
+        self.assertEqual( self.ab_agent.get_single_best_match(a_depot_path3, depot_view_keys) , "//depot/*.*" )
+        self.assertNotEqual( self.ab_agent.get_single_best_match(a_depot_path3, depot_view_keys) , "//depot/..." )        
         
         # a_depot_path_invalid should not find any  depot_view_keys  
-        self.assertEqual( _get_p4_view_key(a_depot_path_invalid) , None ) 
+        self.assertEqual( self.ab_agent.get_single_best_match(a_depot_path_invalid, depot_view_keys) , None ) 
     
-    
+        # a_depot_path4 should match depot_view_keys[4], nor [3] or [5]
+        self.assertEqual( self.ab_agent.get_single_best_match(a_depot_path4, depot_view_keys) , "//depot/a" , 
+                          "expl., for depot path '%s', it prefers '%s' to '%s', '%s'." % ( "//depot/a", "//depot/a" , "//depot/..." ,"//depot/*.*" ))
+        self.assertNotEqual( self.ab_agent.get_single_best_match(a_depot_path4, depot_view_keys) , "//depot/..." )
+        self.assertNotEqual( self.ab_agent.get_single_best_match(a_depot_path4, depot_view_keys) , "//depot/*.*" )
+
+
 #        view_key = ""
 #        self.ab_agent.format_view_key_to_pattern()
         
 #        print result
 #        print result.group()
-#        print help(result.group)
+#        print help(result.group)     
 #        pat = re.compile("aa/bb/cc/*.txt", flags)
 #        pat_mix = "aa/bb/cc/*.txt"
 #        pattern = re.co
         
         
+    def test_parse_p4_view_map(self):
+        """
+        See also:  AlienBrainCLIWrapper#parse_p4_view_map
+        """
+        a_view = { "view" : """
+            //depot/Alice2_Prog/Development/... //ZhuJiaCheng_test_specify_p4_env/Development/...
+            +//depot/Alice2_Prog/Tools/... //ZhuJiaCheng_test_specify_p4_env/Tools/...
+            +//depot/Alice2_Bin/PC_Dependencies/... //ZhuJiaCheng_test_specify_p4_env/PC_Dependencies/...
+            +//depot/Alice2_Bin/Binaries/... //ZhuJiaCheng_test_specify_p4_env/Binaries/...
+            +//depot/Alice2_Bin/Engine/... //ZhuJiaCheng_test_specify_p4_env/Engine/...
+            +//depot/Alice2_Bin/AliceGame/... //ZhuJiaCheng_test_specify_p4_env/AliceGame/...
+            +//depot/Alice2_Bin/*.* //ZhuJiaCheng_test_specify_p4_env/*.*
+            +//depot/Alice2_Branches/... //ZhuJiaCheng_test_specify_p4_env/Alice2_Branches/...
+            """
+            }
+        
+        expect = {  # already removed unwanted blankspaces and plus/minus sign before each entry.
+            "//depot/Alice2_Prog/Development/..."  : "//ZhuJiaCheng_test_specify_p4_env/Development/...", 
+            "//depot/Alice2_Prog/Tools/...": "//ZhuJiaCheng_test_specify_p4_env/Tools/...",
+            "//depot/Alice2_Bin/PC_Dependencies/...": "//ZhuJiaCheng_test_specify_p4_env/PC_Dependencies/...",
+            "//depot/Alice2_Bin/Binaries/...": "//ZhuJiaCheng_test_specify_p4_env/Binaries/...",
+            "//depot/Alice2_Bin/Engine/...": "//ZhuJiaCheng_test_specify_p4_env/Engine/...",
+            "//depot/Alice2_Bin/AliceGame/...": "//ZhuJiaCheng_test_specify_p4_env/AliceGame/...",
+            "//depot/Alice2_Bin/*.*": "//ZhuJiaCheng_test_specify_p4_env/*.*",
+            "//depot/Alice2_Branches/...": "//ZhuJiaCheng_test_specify_p4_env/Alice2_Branches/...",
+        }
+        output = self.ab_agent.parse_p4_view_map( a_view )
+        self.assertEqual( output  ,expect )
+
+    def test_path_in_the_workspace(self):
+        demo_workspace_basedir = "d:/wksp_test" 
+        expected = demo_workspace_basedir + "/" + "Alice2_Branches/Development/Src/a.bat" 
+        output = self.ab_agent.path_in_the_workspace(demo_workspace_basedir, "//depot/Alice2_Branches/Development/Src/a.bat", p4env)
+        self.assertEqual( output , expected  )
+    
+    
+        
 if __name__ == '__main__':   
     unittest.main()
 print "ended "
-
-
 

@@ -3,6 +3,8 @@
 import os, sys
 import subprocess
 import logging
+import re
+import time
 
 from datetime import datetime 
 
@@ -207,7 +209,7 @@ class AlienBrainCLIWrapper:
             debug("file: %s \n" %  file_in_depot )
             action = p4_chg_detail['action'][i]
             debug("action: %s \n" % action )
-            localdir = self.workspace_dir("D:/p4migtest",file_in_depot, p4env) # @attention: use the dict that contain the view, not the value of the key. 
+            localdir = self.path_in_the_workspace("D:/p4migtest",file_in_depot, p4env) # @attention: use the dict that contain the view, not the value of the key. 
             debug ("local dir is : %s \n " % localdir )
             
             
@@ -340,7 +342,7 @@ class AlienBrainCLIWrapper:
         debug("project_rel_path: [" + project_rel_path+"]")
         # ----------------------------------------
         if self.existsindb(quoted(project_rel_path)) and self.existsindb( quoted(a_depot_path.replace("//depot","")) ):
-             cmd_str = " ".join(['ab','delete', quoted(self.workspace_dir("d:/p4migtest", a_depot_path, p4env)) , "-deletelocal", response])
+             cmd_str = " ".join(['ab','delete', quoted(self.path_in_the_workspace("d:/p4migtest", a_depot_path, p4env)) , "-deletelocal", response])
              self.call(cmd_str)
         
     
@@ -382,7 +384,7 @@ class AlienBrainCLIWrapper:
             if not self.existsindb(project_rel_path): 
                 self.import_file_or_dir("//depot"+project_rel_path) # since the recursive call need a depot path, we have to make add it ok
 #        cmd_str = " ".join(['ab','import', project_rel_path, ppath_str])
-        cmd_str = " ".join(['ab','import', "\"" + self.workspace_dir("d:/p4migtest", a_depot_path, p4env) + "\"", ppath_str, "-ignoreexisting"]) # add quotation around file/dir names
+        cmd_str = " ".join(['ab','import', "\"" + self.path_in_the_workspace("d:/p4migtest", a_depot_path, p4env) + "\"", ppath_str, "-ignoreexisting"]) # add quotation around file/dir names
         debug("import file ..." + cmd_str)
         self.call(cmd_str)
     
@@ -441,8 +443,55 @@ class AlienBrainCLIWrapper:
         #TODO: ??make it atomic? rollback ab's change if not fulfilled.  
         pass
 
-    def workspace_dir(self, workspace_basedir, a_depot_path, view):
-        """ 
+
+    def format_view_key_to_pattern(self, string):
+        """To convert a p4workspace's //depot directory into a pattern for later search 
+        """   
+        return "^"+string.replace("/","\\/").replace("...",".*").replace("*.*","[^\/]*\.[^\/]*")+"$"
+
+    # TODO: move to AlienBrainCLIWrapper or Util class!
+    def get_single_best_match(self, depot_path, depot_view_keys):
+        """find the most suitable depot_view_keys according to a depot path
+        See also: test_single_best_match
+        
+        Attention,
+        For now, the only supported depot path format is like "//depot/dir/a.txt" and "//depot/dir/..."
+        I don't know if this format is allowed "//depot/.../directory/c.txt", but such wildcard matching is not implemented.
+        """
+        
+        the_best_matching_key = None
+        for key in depot_view_keys:
+            found = re.match(self.format_view_key_to_pattern(key), depot_path)
+            if found:
+                if the_best_matching_key == None:
+                    the_best_matching_key = key
+                else:
+                    # ESP. this judge is quite crucial, maybe still leaky?! 
+                    if len(key) > len(the_best_matching_key): 
+                        the_best_matching_key = key
+                    else:
+                        # TODO: the logic is not fully anticipated the potential unexpected. 
+                        # Already has a matching, but length of the key is shorter.
+                        # * ESP. there is a possibility that a short key may be a file key in depot_view_keys, 
+                        #   its length may shorter than the wildcard key.
+                        #   e.g. "a_depot_path4" should match "//depot/a", not"//depot/...". Use unit tests! 
+                        # * It MUST be very strict in accepting such key!
+                        if  (os.path.dirname(the_best_matching_key) == os.path.dirname(key)):
+                             # since at the same directory, the "..." should be the least matching one.
+                             if (os.path.basename(the_best_matching_key) == "..." 
+                                    and os.path.basename(key) != "..." ):
+                                 the_best_matching_key = key
+            else:
+                continue
+        
+        print("###    depot path: [ %s ],  matching key: [ %s ]"  % (depot_path, str(the_best_matching_key) ))
+
+        return the_best_matching_key  
+
+    def path_in_the_workspace(self, workspace_basedir, a_depot_path, view):
+        """
+        depends on: get_single_best_match
+         
         I think it's a good way to compile the the first part of view mapping as a regular express, 
         then matching a_deport_path to find the most suitable one!"
         
@@ -453,6 +502,7 @@ class AlienBrainCLIWrapper:
         
         The difficulty is how to match the longest the map's values for a specific file.
     
+        
         @param workspace_basedir: the location of the workspace, should be part of the value as shown in the 'view's key, if not, the value of 'view' dict, ????
         @param a_depot_path: the file/dir location in the view of p4 depot, should starts with //depot/
         @param view: a dict which should have key named 'view'
@@ -461,53 +511,75 @@ class AlienBrainCLIWrapper:
         # template replace
         # TODO: see if neccessary!
         map_depot_to_local_dir = self.parse_p4_view_map(view)
-        symbolic_workspace_dir = ""   # in a symbolic path
-        temp = []
-        candidate = ""
+        depot_workspace_dir = None   
+        absolute_workspace_dir = None
+        
         #TODO: ESP. potential mapping failure if single mapping on files, like \\depot
-        for key in map_depot_to_local_dir.keys():
-            if os.path.dirname(key) in a_depot_path:
-                temp.append(os.path.dirname(key))
+        # Here below are typical key-values in an expected p4 view mapping.  
+        # key: //depot/dir/a.txt  value://wksp/rid/rib2/a.txt
+        # key: //depot/dir/dir\...    value://sksp/rib2/...
+        # key: //depot/dir/*.c    value://sksp/rib/rib2/*.c
+        best_match = self.get_single_best_match( a_depot_path, map_depot_to_local_dir.keys() )
+                
+        if best_match:
+            # value can be a file-file mapping or dir-dir mapping. 
+            value = map_depot_to_local_dir[best_match]
+            depot_workspace_dir = a_depot_path.replace(os.path.dirname(best_match)  , os.path.dirname(value) )
+        else:
+            # record the a_depot_path which has no corresponding 
+            self.potential_failed_file_dir[a_depot_path] = "Not find proper mapping in p4 view"  
+            logger.error("file[%s] can not find a proper mapping in the p4 view! ")                     
+
+        # ----- Deprecated: ---- 
+        # old implementation is not safe, guessing! Because //depot/dir1/... could be overwritten by a later entry //depot/dir1/1/...
+        #temp = []        
+        #candidate = ""
+        #for key in map_depot_to_local_dir.keys():
+            #temp.append(os.path.dirname(key))
+            #if os.path.dirname(key) in a_depot_path:
                 # prepare the longest mapping key for return value
-                if os.path.dirname(key) != None and len(os.path.dirname(key)) >= len(candidate) and os.path.dirname(key)!= candidate :
-                    candidate = os.path.dirname(key)
-                    symbolic_workspace_dir = a_depot_path.replace( os.path.dirname(key), map_depot_to_local_dir[key].replace("/...","") )
+                #if os.path.dirname(key) != None and len(os.path.dirname(key)) >= len(candidate) and os.path.dirname(key)!= candidate :
+                #    candidate = os.path.dirname(key)
+                #    symbolic_workspace_dir = a_depot_path.replace( os.path.dirname(key), map_depot_to_local_dir[key].replace("/...","") )
         # record the a_depot_path which has no corresponding 
-        if len(temp) != 1:
-            self.potential_failed_file_dir[a_depot_path]= temp         
-        # TODO: assertion on all the file in p4 depot could only have one match.
-        # debug()
+        #if len(temp) != 1:
+        #    self.potential_failed_file_dir[a_depot_path]= temp         
+        # ----  end of deprecated ---- 
+       
+        # DONE: either one or none, see: get_single_best_match(). Assertion on all the file in p4 depot could only have one match.
         
         
         # get the 'client spec' or use param '' to convert  symbolic_workspace_dir to the 
         # TODO: use user_spec if better.
-        absolute_workspace_dir = symbolic_workspace_dir.replace("//"+ p4env['client'], workspace_basedir)
+        if depot_workspace_dir:
+            absolute_workspace_dir = depot_workspace_dir.replace("//"+ p4env['client'], workspace_basedir)
         
+        #debug("the potential key is : " + candidate)
+        #debug("the local symbolic path is: " + symbolic_workspace_dir)
+        #debug("the local absolute path is: " + absolute_workspace_dir)
         
-        debug("the potential key is : " + candidate)
-        debug("the local symbolic path is: " + symbolic_workspace_dir)
-        debug("the local absolute path is: " + absolute_workspace_dir)
         return absolute_workspace_dir
         
-        
-        # strip the workspace name of the p4, 
-        
-        # return map_depot_to_local_dir
 
-    def parse_p4_view_map(self, view):
-        """
-        @param view: map
+    def parse_p4_view_map(self, wksp_spec):
+        """Giving a p4 
+        
+        It's part of the steps which get a absolute path from a p4 view map and workspace abs path.
+        See also:  
+
+        It not suggested do many string manipulation here, as little as possible!
+        
+        @param wksp_spec: a dict, p4 workspace specification.
         """
         
         map_depot_to_local_dir = {}
         symbolic_workspace_dir = ""   # in a symbolic path
-        if type(view)  == type(dict()):
+        if type(wksp_spec)  == type(dict()):
             # parse the multiple line of view mapping, hopefully each entry is on the just one line.
-            view = view['view']
+            view = wksp_spec['view']
             lines = view.split("\n")
             for line in lines:
                 line = line.strip()
-                
                 
                 if  line.strip().startswith("//depot") or line.strip().startswith("+//depot"):
                     if len(line.split(" ")) > 2 : 
@@ -515,11 +587,6 @@ class AlienBrainCLIWrapper:
                         continue
                     (key, value ) = line.split(" ")
                     key = key.strip()       #remove heading/trailing spaces
-                    # to avoid file mapping, just mapping to the directory
-                    if not key.endswith("..."):
-                        key = os.path.dirname(key)
-                    if not key.endswith("..."):
-                        value = os.path.dirname(value)
                         
                     if key.startswith("+"): #remove multiple line view symbol "+"
                         key = key[1:]
@@ -527,8 +594,8 @@ class AlienBrainCLIWrapper:
                         pass                #we don not add "-//depot//somewhere" entry as files in that directory  usually do not exist in depot, thus no migration.
                     if key and value:       #store in new dict after some cleaning.
                         map_depot_to_local_dir.update( {key:value} )    
-        debug(map_depot_to_local_dir)
-        debug("-------------- find the map view ------------------")
+        #debug(map_depot_to_local_dir)
+        #debug("-------------- find the map view ------------------")
         
         return map_depot_to_local_dir
 #if __name__ == '__main__':
@@ -751,6 +818,7 @@ class MigrationWorker:
         if os.path.exists(ab_exec) and os.path.exists(p4_exec):
             self.ab = AlienBrainCLIWrapper()  # ab, p4 instance really means correspoding api agent.
             self.p4 = P4PYAPIWrapper()
+            self.poll_period = 10 
         else:
             logger.info("Either of the AB and P4 executable ")
             logger.info("Finished at " + datetime.now().strftime("%d/%m/%y %H:%M:%S"))
@@ -797,12 +865,16 @@ class MigrationWorker:
         """just move acceptable changelists from p4 to ab
         since there will be more ops if migrateWorker does not know any previous change on file/dir, 
         for the momnent, only migrate changelist from no.1, better delete the depot in alienbrain first if redo."""
+        
+        #TODO: detect if the Alienbrain repository is absolute clean, if not , aborted.
+        
+        
         max_id = 0
         changes = self.p4.p4_get_changes()
         for change in changes:
             id = change['change']
             if int(id) > max_id: maxid = int(id)
-        #migrate_by_changeno_range(range(1, max_id))
+        #self.migrate_by_changeno_range(range(1, max_id))
         self.migrate_by_changeno_range(range(1, 3))
         logger.debug("MigrationWorker#migrate_one_time...done!")
         
@@ -840,7 +912,50 @@ class MigrationWorker:
             
                 logger.debug("MigrateWorker#migrate_by_changeno_range...done!")
         
+    def sync_p4_to_ab(self):
+        """Periodically pull the new changelist and apply them to the Alienbrain workspace, and then check into Alienbrain server"""
+        
+        while 1:
+            # * make sure that workspace is up-to the last synced one, 
+            #   sometimes it may be removed, older changelist(of the p4) via manual operations, using other empty workspace, etc.
+            self.carefully_sync_repos()
+            time.sleep(self.poll_period)
     
+    def poll_repo(self):
+        pass
+    
+    
+    # copied from p4dti's src.
+    def carefully_sync_repos(self):
+        try:
+            self.poll_repo()
+            # Reset poll period when the poll was successful.
+            self.poll_period = self.config.poll_period
+        except AssertionError:
+            # Assertions indicate severe bugs in the replicator.  It
+            # might cause serious data corruption if we continue.
+            # We also want these failures to be reported, and they
+            # might go unreported if the replicator carried on
+            # going.
+            raise
+        except KeyboardInterrupt:
+            # Allow people to stop the replicator with Control-C.
+            raise
+        except:
+            self.mail_report(
+                # "The replicator failed to poll successfully."
+                catalog.msg(863),
+                # "The replicator failed to poll successfully,
+                # because of the following problem:"
+                [catalog.msg(864)])
+            # The poll failed; it's likely that it will fail again
+            # for the same reason the next time we poll.  Back off
+            # exponentially so as not to mail bomb the admin.  See
+            # job000215 and job000135.
+            print "self.poll_period  is %s " % self.poll_period  
+            self.poll_period = self.poll_period * 2
+        
+        
 if __name__ == '__main__':   
     # -----------------------  ab sandbox
     
