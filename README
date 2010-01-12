@@ -1,30 +1,40 @@
 
 Purpose:
-    To migrate all the data from a Perforce(SCM) server to the AlienBrain server,
-includes one-time database migration and later changelist(ChangeSet) sync.  
-    This project tends to wrap the 'ab.exe' and 'p4.exe' commands , rather than being a batch
-processing. Since not all the SCM actions will be used in migration, so the wrapper is only
+    To mirror all the changes from a Perforce(SCM) server to the AlienBrain server,
+tasks include one-time database migration and later changelist(ChangeSet) sync.  
+    This project tends to wrap the 'ab.exe' command and 'p4api', rather than being a batch
+processing. Since not all the SCM actions will be used in migration, so the code is only
 useful for simple migration, for now, a feature request I have to get done.
 	Personally, I treat it as an learning opportunity to learn more than computer language
 and do some API design exercises.
 
+Known Issue:
+* During the 'one-time' migration, some of the history(like when the who) will not be mirror
+  as the old data, instead, all those data should go into 'comment' value of the ChangeSet at
+  Alienbrain's side. 
+
 
 Notice:
 * "Changelist"(as in Perforce),"changeset"(as in AlienBrain) and "change" are the inter-changeable nouns, either of them
-  contains a set of files under some kind of SCM operations. 
-* I prefer OO class rather than plain functions because I think this provides a layer of classification so that
-it will be easier for a robot to manipulate on behalf of me; easier for loading in interactive session; unit test?;
+  contains a set of files under some kind of SCM operations. The noun varies in the context of operations.
+* I prefer OO class rather than plain functions because I think this provides a layer of classification so that 
+  it will be easier for a robot to manipulate on behalf of me; easier for loading in interactive session; unit test?;
+
+
+
 
 Progress:
-[write simple prototype]
+[write simple prototype and small-scale up-and-running ]
 
 
 How-to:
 
 
 
+
 Ref:
 
+* 'Perforce 2009.1 APIs for Scripting' P103 # p4.run handling.
 * p42svn 
 * http://code.google.com/p/python-p4lib/
 * a very good example of API

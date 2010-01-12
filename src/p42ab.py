@@ -5,6 +5,8 @@ import subprocess
 import logging
 import re
 import time
+from ConfigParser import ConfigParser
+
 
 from datetime import datetime 
 
@@ -718,9 +720,8 @@ class P4PYAPIWrapper:
             changes = self.p4.run('changes', '-t', '-l')
         except P4Exception:
             for e in self.p4.errors:
-                print e
-                debug(e)
-            #TODO: log here
+                logger.error(str(e))
+            raise OperationFailedException("p4 changes", "See log, please!")
     
         deco = [( int(change['change']), change) for change in changes ]
         deco.sort()
@@ -773,8 +774,13 @@ class P4PYAPIWrapper:
         change_num = change['change'];
         #debug( "ready to get detail of changelist %s \n " % str(change_num))
         #debug("p4_get_change_details: %s \n" % str(change_num) );
-        detail = self.p4.run('describe', '-s', change_num);
-        #print detail[0]
+        try:
+            detail = self.p4.run('describe', '-s', change_num);
+        except P4Exception:
+            for e in self.p4.errors:
+                logger.error(str(e))
+            raise OperationFailedException("p4 changes", "See log, please!")
+        
         if int(change_num) % 50  == 0: 
             logger.debug("P4PYAPIWrapper#p4_get_change_details %s... DONE!" % str(change_num) )   
         return detail[0]   
@@ -811,20 +817,56 @@ class MigrationWorker:
         exception handling, and record error. 
     """    
     
-    def __init__(self, ab_exec, p4_exec):
+    # Q:see necessity of const impl., see: http://code.activestate.com/recipes/414140/
+    LAST_MIGRATED_CHANGE_NUM_LOGFILENAME = ".p4.mig.cl"
+    LAST_MIGRATED_CHANGE_NUM_PROPERTY_NAME = "LAST_MIGRATED_CHANGE_NUM"
+    NON_MIGRATED = 0   # to signify that such workspace is clean and has not done any kind of migration.
+    
+    def __init__(self, ab_exec, p4_exec, abs_path_wksp):
         # It must know the absolute path of the executables to carry out the task
         # Q: p4_src the p4 info from which the changes are migrated. 
         #    Some of the alienbrain's info should get directly from p4 connection instance. Like what?
         if os.path.exists(ab_exec) and os.path.exists(p4_exec):
             self.ab = AlienBrainCLIWrapper()  # ab, p4 instance really means correspoding api agent.
             self.p4 = P4PYAPIWrapper()
-            self.poll_period = 10 
+            self.poll_period = 10
+            self.last_successful_migration_cl = 0
+            if not os.path.exists(abs_path_wksp):
+                # create 
+                os.mkdir(abs_path_wksp)
+                self.abs_path_wksp = abs_path_wksp
+                logger.warn(".p4rev not exists, creating new one.") 
+                logger.warn("It indicates that you are going to do the 'one-time' migration task, otherwise, create that file with last migrated changelist number!")
+                logger.warn("------------------------")
+                cfg = ConfigParser()
+                cfg.set(None, LAST_MIGRATED_CHANGE_NUM_PROPERTY_NAME, int(NON_MIGRATED))
+                file_abspath = os.path.join(self.abs_path_wksp, LAST_MIGRATED_CHANGE_NUM_LOGFILENAME)
+                fp = open(file_abspath)
+                cfg.write(fp)
+                fp.close() # Q: could be any exception here? handling outside!
+             
         else:
             logger.info("Either of the AB and P4 executable ")
             logger.info("Finished at " + datetime.now().strftime("%d/%m/%y %H:%M:%S"))
             logger.info("--------------------------------------------------------------")
             sys.exit()
 
+    def record_last_migrated_changelist_num(self, last_successful_mig_cl):
+        """
+        Read and write the .p4.mig.cl file(under target 'working dir' as in AB /'workspace' as in P4, for now, they share the same directory!) 
+        to record the latest changelist of a workspace.  
+        It could be used to check last updated changelist or act as a secondary revision checking after p4 changelist hooking.
+        
+        @param abs_path_wksp: the absolute path of the target workspace for migration.
+        """
+        self.last_successful_migration_cl = last_successful_mig_cl
+        cfg = ConfigParser()
+        file_abspath = os.path.join(self.abs_path_wksp, LAST_MIGRATED_CHANGE_NUM_LOGFILENAME)
+        cfg.set(None, LAST_MIGRATED_CHANGE_NUM_PROPERTY_NAME, int(last_successful_mig_cl))
+        fp = open(self.abs_path_wksp)
+        cfg.write(fp)
+        fp.close() # Q: could be any exception here? handling outside!
+        
         
     def know_workload(self):
         """get a general ideas on how many changes, how many files.
@@ -838,11 +880,6 @@ class MigrationWorker:
             map_id_to_detail[id] = self.p4.p4_get_change_details(change)
           
         # total number of changelist in p4
-        logger.info( "Total number of changelist in P4: " +  str(len(changes)) )
-        # 
-        branched = 0
-        integrated = 0
-        for change_dict in map_id_to_detail.values():
             if change_dict.has_key("action"):
                 if "branch" in change_dict['action']:
                     branched = branched + 1
@@ -877,11 +914,47 @@ class MigrationWorker:
         #self.migrate_by_changeno_range(range(1, max_id))
         self.migrate_by_changeno_range(range(1, 3))
         logger.debug("MigrationWorker#migrate_one_time...done!")
+    
+    
+    def migrate_by_changeno(self, cl_num):
+        # This step is critical to the migration! Otherwise stop! Really?! 
+        # TODO: check this step OK or not!
+        try:
+            #TODO: level of abstraction is not correct, seemingly!
+            self.p4.p4.run("sync","-f","//depot/...@%s" % cl_num )
+            if self.p4.p4.warnings and len(self.p4.p4.warnings) > 0:
+                logger.warn("Command [ sync -f //depot/...@%s ] has warning:"  % cl_num )
+                logger.warn(self.p4.p4.warnings)
+        except P4Exception:
+            logger.error("Command [ sync -f //depot/...@%s ] has errors:"  % cl_num )
+            for e in self.p4.errors:
+                logger.error(str(e))
+            
+        detail = self.p4.p4_get_change_details(change)
+        self.p4.tell_files_actions(detail)
+        # TODO: Do branch or intergrate here? since there is no need to iterate through files in the change obj.
+        if self.p4.is_branch_changelist(detail):
+            # get the branch details ? How do I know the name?
+            # ab.create_branch(name)
+            logger.warn("changelist %d branched code, we do not migrate it to AlienBrain!")
+        if self.p4.is_integrate_changelist(detail):
+            #pass #TODO
+            logger.warn("changelist %d integrated code, we do not migrate it to AlienBrain!")
+        # migrate changelists which 'add','delete','edit' code
+        try:
+            self.ab.apply_actions_on_files(detail)
+        except OperationFailedException:
+            logger.error("Changelist [ %s ] failed to be migrated! " % id )
+            raise opfe
+        # ATTENTION, the recording of migrated changelist number is so important that I have to mingle it with migration code. 
+        self.record_last_migrated_changelist_num(cl_num)
+        logger.debug("MigrateWorker#migrate_by_changeno [ %s ]...done!" % str(cl_num) )
         
     def migrate_by_changeno_range(self, range):
         """
         @param range: a list, designate changelists to be migrated. 
         """
+        #TODO: sort the range? 
         if range[0] != 1:
             return NotImplementedException("Please migrate from changelist #1, migrate from middle is not yet supported. ")
         
@@ -892,37 +965,47 @@ class MigrationWorker:
         for change in changes:
             id = change['change']
             if int(id) in range: 
-                self.p4.p4.run("sync","-f","//depot/...@%s" % id )
-                detail = self.p4.p4_get_change_details(change)
-                self.p4.tell_files_actions(detail)
-                # TODO: Do branch or intergrate here? since there is no need to iterate through files in the change obj.
-                if self.p4.is_branch_changelist(detail):
-                    # get the branch details ? How do I know the name?
-                    # ab.create_branch(name)
-                    logger.warn("changelist %d branched code, we do not migrate it to AlienBrain!")
-                if self.p4.is_integrate_changelist(detail):
-                    #pass #TODO
-                    logger.warn("changelist %d integrated code, we do not migrate it to AlienBrain!")
-                # migrate changelists which 'add','delete','edit' code
-                try:
-                    self.ab.apply_actions_on_files(detail)
-                except OperationFailedException:
-                    logger.error("Changelist [ %s ] failed to be migrated! " % id )
-                    raise opfe 
-            
-                logger.debug("MigrateWorker#migrate_by_changeno_range...done!")
+                self.migrate_by_changeno(id)
+        logger.debug("MigrateWorker#migrate_by_changeno_range from [%s] to [%s] ... done!" % ( str(range[0]), str(range[-1]) ))
+
+    def migrate_to_latest_changeno(self):
+        """ To migrate changelist to the lastest changeno spicified.         
+        """
+        changes = self.p4.p4_get_changes()
+        # get from 
+        if self.last_successful_migration_cl == 0 :
+            start = 1
+        else:
+            start = int(self.last_successful_migration_cl)
+        # get from p4 command
+        end = int(change[-1]['change'])
+        self.migrate_by_changeno_range( range(start, end+1 ))
+        logger.debug("MigrateWorker#migrate_to_latest_changeno from [%s] to [%s] ... done!" % ( str(start), str(end) ))
+
+    def ensure_workspace_unchanged(self):
+        """
+        NOT feasible, if last migration includes 'file delete', redo that one will not OK, thus can not ensure last one OK or not!
+        see if we can apply last action without submit the change ... NOT FEASIBLE! """
+        pass
         
     def sync_p4_to_ab(self):
         """Periodically pull the new changelist and apply them to the Alienbrain workspace, and then check into Alienbrain server"""
-        
         while 1:
-            # * make sure that workspace is up-to the last synced one, 
-            #   sometimes it may be removed, older changelist(of the p4) via manual operations, using other empty workspace, etc.
             self.carefully_sync_repos()
             time.sleep(self.poll_period)
     
     def poll_repo(self):
+        # * To make sure that the continuing sync changelist can be applied, we can detect whether the later changelist details(e.g. changed files) exist!
+        #   But this is not a good way to detect "up to which changelist has been app in this workspace."
+        
+        
+        # * make sure that workspace is up-to the last synced one, 
+        #   sometimes it may be removed, older changelist(of the p4) via manual operations, using other empty workspace, etc.
+        
+        
+        # * if there is no error or any unexpected found, record to file for later use.
         pass
+        
     
     
     # copied from p4dti's src.
@@ -942,17 +1025,8 @@ class MigrationWorker:
             # Allow people to stop the replicator with Control-C.
             raise
         except:
-            self.mail_report(
-                # "The replicator failed to poll successfully."
-                catalog.msg(863),
-                # "The replicator failed to poll successfully,
-                # because of the following problem:"
-                [catalog.msg(864)])
-            # The poll failed; it's likely that it will fail again
-            # for the same reason the next time we poll.  Back off
-            # exponentially so as not to mail bomb the admin.  See
-            # job000215 and job000135.
-            print "self.poll_period  is %s " % self.poll_period  
+            # TODO: send mail to notify
+            logger.info("self.poll_period  is %s " % self.poll_period )  
             self.poll_period = self.poll_period * 2
         
         
