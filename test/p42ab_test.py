@@ -117,9 +117,8 @@ class AlienBrainCLIWrapperTest(unittest.TestCase):
         string = "aa/bb/cc/a.txt"
         result = re.match(pattern_file, string)
         self.assertTrue( result != None )
-        print result
-        print result.group()
-        print help(result.group)
+        #print result
+        #print result.group()
         
         # should not match  directory
         string = "aa/bb/cc/a/b.txt"  # more directories
@@ -259,6 +258,9 @@ class AlienBrainCLIWrapperTest(unittest.TestCase):
         self.assertEqual( output , expected  )
     
     
+    def test_init_value_correct(self):
+        # if migration starts from very first changelist, important value self.last_migrated_changelist_num should save to -1 
+        
         
 if __name__ == '__main__':   
     unittest.main()

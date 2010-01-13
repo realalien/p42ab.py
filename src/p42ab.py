@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 
 import os, sys
 import subprocess
@@ -16,18 +15,18 @@ from datetime import datetime
 # * TODO: write utilities methods to prevent any unexpected operations in the migration.
 # * WHY: It looks like only in the cli that we can find script error?! Why can't eclipse?
 # * POSTPONE: for office project, 'branch,integrate,purge' will not be implemented right now!
-
+# * TODO: alienbrain command exception handle, interrupt or continue.
 
 # ++++++++++++ BASIC SETUP  +++++++++++++
 AB_USERNAME="Administrator"
 AB_PASSWORD="mes0Spicy"
-AB_PROJECT="p4migtest"
+AB_PROJECT="p4migtest"          # the project name in the AlienBrain server
 AB_SERVER="Spicyfile"
 
 # NOTE: It would be better that create the workspace by hand for migration use before migration. 
 P4PORT="localhost:1666"
 P4USER="ZhuJiaCheng"  
-P4PASSWORD=""   
+P4PASSWORD="mes0Spicy"   
 P4CLIENT="ZhuJiaCheng_test_specify_p4_env" # workspace
 
 
@@ -38,25 +37,27 @@ LOG_LEVEL = logging.DEBUG
 logging.basicConfig(filename=LOG_FILENAME,level=LOG_LEVEL)
 
 logger = logging.getLogger('MyLogger')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)  #DEBUG
 # Add the log message handler to the logger
 #handler = logging.FileHandler(LOG_FILENAME, maxBytes=1024*1024, backupCount=5)
 handler = logging.FileHandler(LOG_FILENAME)
 handler2 = logging.StreamHandler()
 
-handler.setLevel(logging.INFO)
-handler2.setLevel(logging.DEBUG)
+handler.setLevel(logging.INFO) #DEBUG
+handler2.setLevel(logging.INFO) #DEBUG
 logger.addHandler(handler)
 logger.addHandler(handler2)
 
 # ++++++++++++ function code  +++++++++++++
 def debug(text):
-    logger.debug("------>>>  " + str(text))
+    #logger.debug("------>>>  " + str(text))
+    pass
 
 def quoted(text):
     # avoid None param
     if text:
         str = text
+        str.replace("\"", "'")
     # add quotation mark for dir/file names with blankspace    
     if not text.startswith("\""):
         return "\"" + str + "\""
@@ -102,10 +103,10 @@ class AlienBrainCLIWrapper:
         self.output = ""
         self.potential_failed_file_dir = {}
         self.failed_ab_commands = []        # list of 2-item tuples, for defensive audit use
+        
         if not self.connected(): self.logon(AB_USERNAME, AB_PASSWORD, AB_PROJECT, AB_SERVER)
-
         logger.debug("AlienBrainCLIWrapper#__init__ ... done! ")  # better if there is a post function call. Some modules?
-    
+        
 #    def call(self):
 #        self.output = os.popen(self.executable + " " + " ".join(self.args) ).read()
 #        return self.output
@@ -144,7 +145,6 @@ class AlienBrainCLIWrapper:
         
     # INFO, 
     def call(self,cmd_string):
-
         # ESP. get familiar with system call from python doc. the web page.
         process = subprocess.Popen(cmd_string, shell=True, stdin=subprocess.PIPE, 
                                    stdout=subprocess.PIPE )
@@ -156,7 +156,7 @@ class AlienBrainCLIWrapper:
         stdout = child_stdout.readlines()
         
         logger.debug(cmd_string)
-        logger.info(stdout) 
+        logger.debug(stdout) 
         if stdout:
             # Q: shall I stop the processing(migration)?
             # SUG: it would be better to record the erorr.
@@ -166,7 +166,8 @@ class AlienBrainCLIWrapper:
         process.stdin.close()
         val = process.wait()
         if  val != 0:
-            logger.warn("There were some errors(not error really!) , wait returns %s"  % val) 
+            logger.warn("There were feedback from server(not error really): %s " % stdout)
+            logger.warn("   when issuing command [%s] , wait returns %s"  % ( cmd_string, val) ) 
             return False
         else:
             return True
@@ -186,7 +187,7 @@ class AlienBrainCLIWrapper:
     
     def setworkingpath(self,dir):
         #TODO: avoid blankspace and slash '\'
-        cmd_str = " ".join(['ab','setworkingpath',dir])
+        cmd_str = " ".join(['ab','setworkingpath', quoted(dir) ])
         self.call(cmd_str)    
         
     def getworkingpath(self):
@@ -199,6 +200,10 @@ class AlienBrainCLIWrapper:
         @param p4_chg_detail: a dict of p4 changelist spec
         """
         # validation of p4_chg, TODO: more strict check
+        
+        if not p4_chg_detail.has_key('action'):
+            return
+        
         if len(p4_chg_detail['depotFile']) != len(p4_chg_detail['action']):
             raise OperationFailedException("apply_actions_on_files", "p4_chg corrupted, could not be migrate to Alienbrain")
         
@@ -268,7 +273,12 @@ class AlienBrainCLIWrapper:
                 # similarly, in p4, integrate from branch spec, 
                 pass 
         #all files/dirs processed, submit the changeset
-        comm = str(p4_chg_detail['desc'].strip())  # remove the last carriage return key.
+        # TODO: we should keep all the p4 data as much as possible
+        who = str(p4_chg_detail['user'].strip())
+        when = time.ctime(int(p4_chg_detail['time'])).strip()
+        chg_id = str(p4_chg_detail['change'].strip())
+        from_p4 = " ... P4 CL: " + chg_id + " | " + who + " | " + when
+        comm = str(p4_chg_detail['desc'].strip().replace("\"", "'")) + from_p4  # remove the last carriage return key., replace double quote
         self.submit_changeset(comment=comm)    
         
         # apply the action in the alienbrain workdir.
@@ -335,9 +345,6 @@ class AlienBrainCLIWrapper:
         #assemble Response, see: "Command Line Tool.pdf, P11, Default Response" of AlienBrain 7 documentation.
         response = "-response:Delete.Warning 0"   
            
-        #assembly comment
-        #comment = "-comment 'I did it'"
-        
         debug("p4 depot path: " + a_depot_path) 
         debug("parent_path: " + parent_path) 
         debug("ppath_str: " + ppath_str)
@@ -391,17 +398,17 @@ class AlienBrainCLIWrapper:
         self.call(cmd_str)
     
     def existsindb(self, path):
-        cmd_str = " ".join(['ab','existsindb', path])
+        cmd_str = " ".join(['ab','existsindb', quoted(path) ])
         return self.call(cmd_str)
         
         
     def checkout(self, abs_path ): # to be more useful, *args should be merged into opts of the arguments and do some sanity check.
         # TODO: may discriminate file/dir
-        cmd_str = " ".join(['ab','checkout', abs_path])
+        cmd_str = " ".join(['ab','checkout', quoted(abs_path) ])
         self.call(cmd_str)
         
     
-    def new_changeset_as_default(self, name=""):
+    def new_changeset_as_default(self, name="Unnamed"):
         """ since the pending change will all go to the default changeset which is explicitly specified by the users, 
         It has to be made crystal clear in case any miss handling of changeset and changes.  
         
@@ -417,12 +424,16 @@ class AlienBrainCLIWrapper:
         
           @attention:  UNTESTED
         """
-        cmd_str = " ".join(['ab','newchangeset', name])
-        self.call(cmd_str)
-        cmd_str = " ".join(['ab','setdefaultchangeset', name])
-        self.call(cmd_str)   
+        cmd_str = " ".join(['ab','getdefaultchangeset',name])
+        if self.call(cmd_str):
+            cmd_str = " ".join(['ab','setdefaultchangeset', name])
+        else:
+            cmd_str = " ".join(['ab','newchangeset', name])
+            self.call(cmd_str)
+            cmd_str = " ".join(['ab','setdefaultchangeset', name])
+            self.call(cmd_str)   
         # TODO:  avoid error with existing named changeset
-                
+    
     def submit_changeset(self, name=None, comment="No comment!"):
         """
         If name is empty , adding some preemptive process for the weak command line process
@@ -435,6 +446,7 @@ class AlienBrainCLIWrapper:
         else:
             cmd_str = " ".join(['ab','submitpendingchanges', '-changeset', name, '-comment', quoted(comment)])  # failed or not working
             self.call(cmd_str)
+        
 
     def submit_file(self,file):    
         pass
@@ -486,7 +498,7 @@ class AlienBrainCLIWrapper:
             else:
                 continue
         
-        print("###    depot path: [ %s ],  matching key: [ %s ]"  % (depot_path, str(the_best_matching_key) ))
+        #print("###    depot path: [ %s ],  matching key: [ %s ]"  % (depot_path, str(the_best_matching_key) ))
 
         return the_best_matching_key  
 
@@ -712,7 +724,9 @@ class P4PYAPIWrapper:
         """
         @return: a list of change
         """
-        
+        if not self.p4.connected():
+            self.p4.connect()
+            self.p4.run_login( P4PASSWORD )
         changes = []
         # TODO: see if need to get branch related changelist, it looks like 
         #  for a2, no way to get changelists from branch info.
@@ -749,14 +763,15 @@ class P4PYAPIWrapper:
             logger.debug("in change, add: %d, edit: %d, delete: %d, branch: %d, integrate: %d" % 
                         ( actions.count("add"), actions.count("edit"),actions.count("delete"),
                           actions.count("branch"),actions.count("integrate") )  )
-        else:
-            logger.info("no change spicified or no actions found!")
-            
-        return {"add":actions.count("add"), 
+            return {"add":actions.count("add"), 
                 "edit":actions.count("edit"),
                 "delete":actions.count("delete"),
                 "branch":actions.count("branch"),
                 "integrate":actions.count("integrate") }
+        else:
+            logger.info("no change spicified or no actions found in change [%s]!" % str(change['change']))
+            return {}
+        
     
     def is_branch_changelist(self, change):
         if type(change) == type(dict()) and change.has_key("action") and ("branch" in change['action']):
@@ -806,6 +821,8 @@ class P4PYAPIWrapper:
     #                                     'type' => type};  
     #    
 
+
+
 class MigrationWorker:
     """It supposed to be a single thread program!
     
@@ -818,9 +835,10 @@ class MigrationWorker:
     """    
     
     # Q:see necessity of const impl., see: http://code.activestate.com/recipes/414140/
-    LAST_MIGRATED_CHANGE_NUM_LOGFILENAME = ".p4.mig.cl"
-    LAST_MIGRATED_CHANGE_NUM_PROPERTY_NAME = "LAST_MIGRATED_CHANGE_NUM"
-    NON_MIGRATED = 0   # to signify that such workspace is clean and has not done any kind of migration.
+    global LAST_MIGRATED_CHANGE_NUM_LOGFILENAME ; LAST_MIGRATED_CHANGE_NUM_LOGFILENAME = ".p4.mig.cl"
+    global LAST_MIGRATED_CHANGE_NUM_PROPERTY_NAME ; LAST_MIGRATED_CHANGE_NUM_PROPERTY_NAME = "last_migrated_change_num"
+    global SECTION_NAME; SECTION_NAME = "history"
+    global NON_MIGRATED ; NON_MIGRATED = 0   # to signify that such workspace is clean and has not done any kind of migration.
     
     def __init__(self, ab_exec, p4_exec, abs_path_wksp):
         # It must know the absolute path of the executables to carry out the task
@@ -830,27 +848,60 @@ class MigrationWorker:
             self.ab = AlienBrainCLIWrapper()  # ab, p4 instance really means correspoding api agent.
             self.p4 = P4PYAPIWrapper()
             self.poll_period = 10
-            self.last_successful_migration_cl = 0
+            self.map_id_to_detail = {}
+            # create workspace if not present
             if not os.path.exists(abs_path_wksp):
                 # create 
                 os.mkdir(abs_path_wksp)
                 self.abs_path_wksp = abs_path_wksp
-                logger.warn(".p4rev not exists, creating new one.") 
+            else:
+                self.abs_path_wksp = abs_path_wksp
+            
+            mig_log = os.path.normpath(os.path.join(self.abs_path_wksp, LAST_MIGRATED_CHANGE_NUM_LOGFILENAME)) 
+            if not os.path.exists(mig_log):
+                fp = open(mig_log ,"w")
+                fp.close() 
+                logger.warn(".p4.mig.cl not exists in the workspace, creating new one.") 
                 logger.warn("It indicates that you are going to do the 'one-time' migration task, otherwise, create that file with last migrated changelist number!")
                 logger.warn("------------------------")
                 cfg = ConfigParser()
-                cfg.set(None, LAST_MIGRATED_CHANGE_NUM_PROPERTY_NAME, int(NON_MIGRATED))
-                file_abspath = os.path.join(self.abs_path_wksp, LAST_MIGRATED_CHANGE_NUM_LOGFILENAME)
-                fp = open(file_abspath)
+                cfg.add_section(SECTION_NAME)
+                cfg.set(SECTION_NAME, LAST_MIGRATED_CHANGE_NUM_PROPERTY_NAME, int(NON_MIGRATED))
+                fp = open(mig_log,"w")
                 cfg.write(fp)
                 fp.close() # Q: could be any exception here? handling outside!
-             
+                
+                
+            # anyway, we should read the value from file
+            cfg = ConfigParser()
+            fp = open(mig_log,"r")
+            cfg.readfp(fp)
+            # print(cfg.sections())
+            num = -1 
+            if cfg.has_option(SECTION_NAME, LAST_MIGRATED_CHANGE_NUM_PROPERTY_NAME):
+                num = cfg.get(SECTION_NAME, LAST_MIGRATED_CHANGE_NUM_PROPERTY_NAME)
+            fp.close() # Q:
+            self.set_last_migrated_changelist_num(num)
+            logger.info("Migration start from changelist %s" % str(num) )
+            time.sleep(5)     
         else:
             logger.info("Either of the AB and P4 executable ")
             logger.info("Finished at " + datetime.now().strftime("%d/%m/%y %H:%M:%S"))
             logger.info("--------------------------------------------------------------")
             sys.exit()
 
+    def get_last_migrated_changelist_num(self):
+        """Getter for instance variable 'last_migrated_changelist_num' """
+        return self.last_successful_migration_cl
+    
+    
+    def set_last_migrated_changelist_num(self, last_successful_mig_cl):
+        """Setter for instance variable 'last_migrated_changelist_num' 
+        @param last_migrated_changelist_num: the changelist number of the last successful migration.
+        """
+        self.last_successful_migration_cl = last_successful_mig_cl
+        
+        
     def record_last_migrated_changelist_num(self, last_successful_mig_cl):
         """
         Read and write the .p4.mig.cl file(under target 'working dir' as in AB /'workspace' as in P4, for now, they share the same directory!) 
@@ -859,14 +910,15 @@ class MigrationWorker:
         
         @param abs_path_wksp: the absolute path of the target workspace for migration.
         """
-        self.last_successful_migration_cl = last_successful_mig_cl
+        self.set_last_migrated_changelist_num(last_successful_mig_cl)
         cfg = ConfigParser()
         file_abspath = os.path.join(self.abs_path_wksp, LAST_MIGRATED_CHANGE_NUM_LOGFILENAME)
-        cfg.set(None, LAST_MIGRATED_CHANGE_NUM_PROPERTY_NAME, int(last_successful_mig_cl))
-        fp = open(self.abs_path_wksp)
+        cfg.add_section(SECTION_NAME)
+        cfg.set(SECTION_NAME, LAST_MIGRATED_CHANGE_NUM_PROPERTY_NAME, int(last_successful_mig_cl))
+        fp = open(file_abspath, "wb")
         cfg.write(fp)
         fp.close() # Q: could be any exception here? handling outside!
-        
+        logger.info("AlienBrainCLIWrapper#record_last_migrated_changelist_num  [ %s ]... Done!" % str(last_successful_mig_cl) )
         
     def know_workload(self):
         """get a general ideas on how many changes, how many files.
@@ -875,19 +927,22 @@ class MigrationWorker:
         """
         map_id_to_detail = {}  # hopefully it will not explode the memory?!
         changes = self.p4.p4_get_changes()
+        branched = 0
+        integrated = 0
         for change in changes:
             id = change['change']
-            map_id_to_detail[id] = self.p4.p4_get_change_details(change)
+            self.map_id_to_detail[id] = self.p4.p4_get_change_details(change)
           
         # total number of changelist in p4
-            if change_dict.has_key("action"):
-                if "branch" in change_dict['action']:
+            if self.map_id_to_detail[id].has_key("action"):
+                if "branch" in self.map_id_to_detail[id]['action']:
                     branched = branched + 1
-                if "integrate" in change_dict['action']:
+                if "integrate" in self.map_id_to_detail[id]['action']:
                     integrated = integrated + 1
                     
         logger.info( "Total number of changelist which branches code in P4: " +  str(branched) )
         logger.info( "Total number of changelist which integrate code in P4: " +  str(integrated) )
+        logger.info( "Start migration from changelist " +  str(int(self.last_successful_migration_cl) + 1 ) + " from P4 " )
         #logger.info( "Number of files among changeslist in P4: " +  str("") )
         
         
@@ -896,6 +951,12 @@ class MigrationWorker:
 #        if self.ab: 
 #            if not self.ab.connected():
 #                self.ab.logon(username, password, project, ab_server)
+    
+    def anew_ab_server(self):
+        """ To well mirrored a p4 server, one should has each corresponding changelist, 
+        if the workspace is not clean, then AlienBrain may got tainted changes from workspace and will have more changelists than p4's server.
+        """
+        pass #TODO
         
     
     def migrate_one_time(self):        
@@ -904,7 +965,6 @@ class MigrationWorker:
         for the momnent, only migrate changelist from no.1, better delete the depot in alienbrain first if redo."""
         
         #TODO: detect if the Alienbrain repository is absolute clean, if not , aborted.
-        
         
         max_id = 0
         changes = self.p4.p4_get_changes()
@@ -917,6 +977,11 @@ class MigrationWorker:
     
     
     def migrate_by_changeno(self, cl_num):
+        """Attention: the migration is called by all kinds of migration tasks which based on changelist number, 
+        its work plan is follow by a pre-calculated instance variable 'self.map_id_to_detail'(a dict) rather than by runtime detection,
+        
+        """
+        
         # This step is critical to the migration! Otherwise stop! Really?! 
         # TODO: check this step OK or not!
         try:
@@ -927,19 +992,24 @@ class MigrationWorker:
                 logger.warn(self.p4.p4.warnings)
         except P4Exception:
             logger.error("Command [ sync -f //depot/...@%s ] has errors:"  % cl_num )
-            for e in self.p4.errors:
+            for e in self.p4.p4.errors:
                 logger.error(str(e))
-            
-        detail = self.p4.p4_get_change_details(change)
+        
+        #detail = self.p4.p4_get_change_details(change)
+        detail = self.map_id_to_detail.get(cl_num)
+        
+        # TODO: add unit test to avoid details without actions
+        
         self.p4.tell_files_actions(detail)
         # TODO: Do branch or intergrate here? since there is no need to iterate through files in the change obj.
+        # TODO: code change other than branches will be lost! amend!
         if self.p4.is_branch_changelist(detail):
             # get the branch details ? How do I know the name?
             # ab.create_branch(name)
-            logger.warn("changelist %d branched code, we do not migrate it to AlienBrain!")
+            logger.warn("changelist %s branched code, we do not migrate it to AlienBrain!" % str(detail['change']) )
         if self.p4.is_integrate_changelist(detail):
             #pass #TODO
-            logger.warn("changelist %d integrated code, we do not migrate it to AlienBrain!")
+            logger.warn("changelist %s integrated code, we do not migrate it to AlienBrain!" % str(detail['change']))
         # migrate changelists which 'add','delete','edit' code
         try:
             self.ab.apply_actions_on_files(detail)
@@ -952,20 +1022,40 @@ class MigrationWorker:
         
     def migrate_by_changeno_range(self, range):
         """
+        One should add one more element to the range because the python's range excludes the element at the end of range
         @param range: a list, designate changelists to be migrated. 
         """
         #TODO: sort the range? 
-        if range[0] != 1:
-            return NotImplementedException("Please migrate from changelist #1, migrate from middle is not yet supported. ")
+        #if range[0] != 1:
+        #    raise NotImplementedException("Please migrate from changelist #1, migrate from middle is not yet supported. ")
         
         #TODO: ESP, must have a record in case of any interruption.
         #    p4.run("sync","-f","//depot/...@%s" % demo_chg )
-        changes = self.p4.p4_get_changes()
-        debug("changes size %s"  % str(len(changes)) )
-        for change in changes:
-            id = change['change']
-            if int(id) in range: 
-                self.migrate_by_changeno(id)
+        
+        #changes = self.p4.p4_get_changes()
+        #debug("changes size %s"  % str(len(changes)) )
+
+        # Attention: iteration through a map is not safe as the sequence unexpected!?
+        range.sort()    # make sure migration changes are incremental from small to big number.
+        
+        # Undo last unsubmit change
+        
+        
+        # migrate
+        if 0 in range: range.remove(0)   # avoid user assigned range from 0
+        if str(self.last_successful_migration_cl) != str(range[0] - 1):
+            logger.error(str(range[0] - 1 ))
+            logger.error(str(self.last_successful_migration_cl))
+            raise OperationFailedException("migrate_by_changeno_range", "In AlienBrain#migrate_by_changeno_range() , it is assumed that 'last_successful_migration_cl = range[0]', please check the .p4.mig.cl file at the workspace") 
+        for i in range:
+            if self.map_id_to_detail.has_key(str(i) ):
+                self.migrate_by_changeno( str(i) )
+            else:
+                logger.warning("Assigned value %s not in range! No such changelist!" % str(i) )
+        #for change in changes:
+            #id = change['change']
+            #if int(id) in range: 
+               #self.migrate_by_changeno(id)
         logger.debug("MigrateWorker#migrate_by_changeno_range from [%s] to [%s] ... done!" % ( str(range[0]), str(range[-1]) ))
 
     def migrate_to_latest_changeno(self):
@@ -973,14 +1063,15 @@ class MigrationWorker:
         """
         changes = self.p4.p4_get_changes()
         # get from 
-        if self.last_successful_migration_cl == 0 :
+        if self.last_successful_migration_cl == NON_MIGRATED :
             start = 1
         else:
-            start = int(self.last_successful_migration_cl)
-        # get from p4 command
-        end = int(change[-1]['change'])
-        self.migrate_by_changeno_range( range(start, end+1 ))
-        logger.debug("MigrateWorker#migrate_to_latest_changeno from [%s] to [%s] ... done!" % ( str(start), str(end) ))
+            start = int(self.last_successful_migration_cl) +1    # Attention: should not resubmit the last successful one, which may cause errors!
+        
+        end = int(changes[-1]['change'])
+        logger.info("MigrateWorker#migrate_to_latest_changeno from [%s] to [%s] ... starting" % ( str(start ), str(end) ))
+        self.migrate_by_changeno_range( range(start , end +1 ))
+        logger.info("MigrateWorker#migrate_to_latest_changeno from [%s] to [%s] ... done!" % ( str(start), str(end) ))
 
     def ensure_workspace_unchanged(self):
         """
@@ -1004,6 +1095,10 @@ class MigrationWorker:
         
         
         # * if there is no error or any unexpected found, record to file for later use.
+        
+        
+        # * since in p4 server, some changelist is not submitted, but the number is reserved, we should continue to check if those pending one are submitted
+        #   according to the history recording.
         pass
         
     
@@ -1036,11 +1131,17 @@ if __name__ == '__main__':
     ab_exec = "C:/Program Files (x86)/alienbrain/Client/Application/Tools/ab.exe"
     p4_exec = "C:/Program Files (x86)/Perforce/p4.exe"
     
-    mig_worker = MigrationWorker(ab_exec, p4_exec)
+    mig_worker = MigrationWorker(ab_exec, p4_exec, "d:/p4migtest")
     
     mig_worker.know_workload()
     
-    mig_worker.migrate_one_time()
+    #mig_worker.migrate_by_changeno_range(range(1,2))
+    #mig_worker.migrate_by_changeno_range(range(1,7))
+    
+    mig_worker.migrate_to_latest_changeno()
+    
+    
+    #mig_worker.migrate_one_time()
     
 #    ab = AB()
 ##    
