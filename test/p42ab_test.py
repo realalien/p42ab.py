@@ -23,6 +23,7 @@ p4env = {
     #'customview':'''View:
     'view':'''
      //depot/Alice2_Prog/Development/... //ZhuJiaCheng_test_specify_p4_env/Development/...
+    +//depot/... //ZhuJiaCheng_test_specify_p4_env/...
     +//depot/Alice2_Prog/Tools/... //ZhuJiaCheng_test_specify_p4_env/Tools/...
     +//depot/Alice2_Bin/PC_Dependencies/... //ZhuJiaCheng_test_specify_p4_env/PC_Dependencies/...
     +//depot/Alice2_Bin/Binaries/... //ZhuJiaCheng_test_specify_p4_env/Binaries/...
@@ -220,6 +221,47 @@ class AlienBrainCLIWrapperTest(unittest.TestCase):
 #        pat = re.compile("aa/bb/cc/*.txt", flags)
 #        pat_mix = "aa/bb/cc/*.txt"
 #        pattern = re.co
+        # -----------------------------    for specific project    -----------------------------------  
+        P4PORT="spicydata:1666"   #"localhost:1666"
+        P4USER="ZhuJiaCheng"     #"ZhuJiaCheng"  
+        P4PASSWORD="mes0Spicy"     #"mes0Spicy"   
+        P4CLIENT="zhujiacheng4wjj"       # "ZhuJiaCheng_test_specify_p4_env" # workspace
+
+        p4env = {
+    'port': P4PORT,
+    'user': P4USER,
+    'passwd': P4PASSWORD,
+    'client':P4CLIENT,
+    'branch':'',
+    'charset':'',
+    #'customview':'''View:
+    'view':'''
+    //depot/Alice2_Prog/Development/... //zhujiacheng4wjj/Development/...
+    +//depot/... //zhujiacheng4wjj/...
+    +//depot/Alice2_Prog/Tools/... //zhujiacheng4wjj/Tools/...
+    +//depot/Alice2_Bin/PC_Dependencies/... //zhujiacheng4wjj/PC_Dependencies/...
+    +//depot/Alice2_Bin/Binaries/... //zhujiacheng4wjj/Binaries/...
+    +//depot/Alice2_Bin/Engine/... //zhujiacheng4wjj/Engine/...
+    +//depot/Alice2_Bin/AliceGame/... //zhujiacheng4wjj/AliceGame/...
+    +//depot/Alice2_Bin/*.* //zhujiacheng4wjj/*.*
+    +//depot/Alice2_Branches/... //zhujiacheng4wjj/Alice2_Branches/...
+'''
+}
+        
+        b_depot_path = "//depot/Alice2_Bin/Engine/ArtTools/Maya/Scripts"
+        self.assertEqual( self.ab_agent.get_single_best_match(b_depot_path, self.ab_agent.parse_p4_view_map(p4env).keys()) , "//depot/Alice2_Bin/Engine/..." )
+
+        b_depot_path = "//depot/Alice2_Bin/Engine"  # when import a dir under the workspace it may fail.
+        self.assertEqual( self.ab_agent.get_single_best_match(b_depot_path, self.ab_agent.parse_p4_view_map(p4env).keys()) , "//depot/..." )
+
+        print self.ab_agent.path_in_the_workspace("demo/workspace", "//depot/Alice2_Bin", p4env)
+        print self.ab_agent.path_in_the_workspace("demo/workspace", "//depot/Alice2_Prog/Development/", p4env)
+
+#        b_depot_path = "//depot/Alice2_Bin/Engine"  # when import a dir under the workspace it may fail.
+#        self.assertEqual( self.ab_agent.get_single_best_match(b_depot_path, self.ab_agent.parse_p4_view_map(p4env).keys()) , "//depot/Alice2_Bin/Engine/..." )
+#        
+#        b_depot_path = "//depot/Alice2_Bin/"  # when import a dir under the workspace it may fail.
+#        self.assertEqual( self.ab_agent.get_single_best_match(b_depot_path, self.ab_agent.parse_p4_view_map(p4env).keys()) , "//depot/Alice2_Bin/..." )
         
         
     def test_parse_p4_view_map(self):
@@ -258,9 +300,9 @@ class AlienBrainCLIWrapperTest(unittest.TestCase):
         self.assertEqual( output , expected  )
     
     
-    def test_init_value_correct(self):
+    def test_init_value_correct(self):  
         # if migration starts from very first changelist, important value self.last_migrated_changelist_num should save to -1 
-        
+        pass
         
 if __name__ == '__main__':   
     unittest.main()

@@ -161,3 +161,22 @@ alienbrain
 
 * ESP. to minimize the operations at the p4 client, also since there are not much p4 operations in migration work.
  I think it is OK to generate a dict of info and then, migration from that dict of info.
+ 
+ 
+ 
+--------------------------------------------------------------------------------------------------------------
+Quick Reference:
+
+#Usage Examples:
+#---------------
+#ab help checkout
+#ab h gl
+#ab enumprojects -s NXNSERVER
+#ab logon -u John -p "" -d Demo_Project -s NXNSERVER
+#ab setworkingpath "c:\myworkingpath\Demo_Project"
+#ab enumobjects
+#ab isuptodate picture1.bmp
+#ab find -checkedoutby "John"
+#ab checkout picture1.bmp -comment "Modifying background" -response:CheckOut.Writ
+#able y
+#ab logoff
