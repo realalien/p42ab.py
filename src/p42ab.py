@@ -43,14 +43,14 @@ LOG_LEVEL = logging.DEBUG
 logging.basicConfig(filename=LOG_FILENAME,level=LOG_LEVEL)
 
 logger = logging.getLogger('MyLogger')
-logger.setLevel(logging.INFO)  #DEBUG  #INFO
+logger.setLevel(logging.DEBUG)  #DEBUG  #INFO
 # Add the log message handler to the logger
 #handler = logging.FileHandler(LOG_FILENAME, maxBytes=1024*1024, backupCount=5)
 handler = logging.FileHandler(LOG_FILENAME)
 handler2 = logging.StreamHandler()
 
-handler.setLevel(logging.INFO) #DEBUG  #INFO
-handler2.setLevel(logging.INFO) #DEBUG  #INFO
+handler.setLevel(logging.DEBUG) #DEBUG  #INFO
+handler2.setLevel(logging.DEBUG) #DEBUG  #INFO
 logger.addHandler(handler)
 logger.addHandler(handler2)
 
@@ -445,12 +445,14 @@ class AlienBrainCLIWrapper:
         debug("ppath_str: " + ppath_str)
         debug("project_rel_path: [" + project_rel_path+"]")
         
+        response = "-response:Import.LocalFileExists 2"   #  
+        
         if  project_rel_path.strip() != "":  
             if not self.existsindb(project_rel_path): 
                 self.import_file_or_dir("//depot"+project_rel_path, wksp) # since the recursive call need a depot path, we have to make add it ok
 #        cmd_str = " ".join(['ab','import', project_rel_path, ppath_str])
-        cmd_str = " ".join(['ab','import', "\"" + self.path_in_the_workspace(wksp , a_depot_path, p4env) + "\"", ppath_str, "-ignoreexisting"]) # add quotation around file/dir names
-        debug("import file ..." + cmd_str)
+        cmd_str = " ".join(['ab','import', "\"" + self.path_in_the_workspace(wksp , a_depot_path, p4env) + "\"", ppath_str, "-ignoreexisting", response]) # add quotation around file/dir names
+        logger.debug("import file ..." + cmd_str)
         self.call(cmd_str)
     
     def existsindb(self, path):
@@ -985,8 +987,9 @@ class MigrationWorker:
         # TODO: check this step OK or not!
         try:
             #TODO: level of abstraction is not correct, seemingly!
+            logger.info("p4 sync changelist" + str(cl_num) )
             self.p4.p4.run("sync","-f", "//depot/...@%s" % cl_num )
-            logger.debug("p4 sync changelist %s." % cl_num )
+            logger.debug("p4 sync ...done!" )
             if self.p4.p4.warnings and len(self.p4.p4.warnings) > 0:
                 logger.warn("Command [ sync -f //depot/...@%s ] has warning:"  % cl_num )
                 logger.warn(self.p4.p4.warnings)
@@ -996,6 +999,7 @@ class MigrationWorker:
                 logger.error(str(e))
         
         #detail = self.p4.p4_get_change_details(change)
+        #TODO: what if cl_num is not found? keyerror?
         detail = self.map_id_to_detail.get(cl_num)
         
         # TODO: add unit test to avoid details without actions
@@ -1138,9 +1142,9 @@ if __name__ == '__main__':
     #mig_worker.migrate_by_changeno_range(range(1,2))
     #mig_worker.migrate_by_changeno_range(range(1,7))
     
-    mig_worker.migrate_to_latest_changeno()
+    #mig_worker.migrate_to_latest_changeno()
     
-    #mig_worker.migrate_by_changeno_range(range(1,2))
+    mig_worker.migrate_by_changeno_range(range(2,3))
     
     
     #mig_worker.migrate_one_time()
